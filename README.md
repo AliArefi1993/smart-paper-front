@@ -10,6 +10,17 @@ npm run dev
 
 Frontend runs on `http://localhost:3000`.
 
+## Use Frontend (Lighter, no dev mode)
+
+When you are just using the app (not developing), run it in production mode:
+
+```bash
+cd /home/aliarefi/Documents/programming/playground/smart-paper-front
+npm install
+npm run build
+npm run start
+```
+
 ## Backend Connection
 By default, the app calls backend API on:
 - `http://127.0.0.1:8010/api`
