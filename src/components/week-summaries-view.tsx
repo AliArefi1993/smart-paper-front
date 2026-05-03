@@ -18,6 +18,10 @@ type WeekSummary = {
   is_current: boolean;
 };
 
+type WeekSummariesResponse = {
+  summaries?: WeekSummary[];
+};
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010/api";
 
@@ -54,15 +58,40 @@ function formatShamsiWeekRange(startIso: string, endIso: string): string {
 }
 
 function formatMinutes(value: number): string {
+  if (!Number.isFinite(value) || value < 0) {
+    return "00:00";
+  }
   const hours = Math.floor(value / 60);
   const minutes = value % 60;
   return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+}
+
+function toSafeNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function normalizeWeekSummary(week: WeekSummary): WeekSummary {
+  const bySection = Object.fromEntries(
+    SECTIONS.map((section) => [
+      section,
+      toSafeNumber(week.totals?.by_section_minutes?.[section]),
+    ]),
+  ) as Record<SectionName, number>;
+
+  return {
+    ...week,
+    totals: {
+      by_section_minutes: bySection,
+      week_total_minutes: toSafeNumber(week.totals?.week_total_minutes),
+    },
+  };
 }
 
 export function WeekSummariesView() {
   const [summaries, setSummaries] = useState<WeekSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showEmptyWeeks, setShowEmptyWeeks] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,9 +101,9 @@ export function WeekSummariesView() {
         if (!response.ok) {
           throw new Error("Could not load week summaries");
         }
-        const payload = (await response.json()) as { summaries: WeekSummary[] };
+        const payload = (await response.json()) as WeekSummariesResponse;
         if (cancelled) return;
-        setSummaries(payload.summaries);
+        setSummaries((payload.summaries ?? []).map(normalizeWeekSummary));
       } catch (loadError) {
         if (cancelled) return;
         setError(
@@ -98,6 +127,12 @@ export function WeekSummariesView() {
     () => [...summaries].sort((a, b) => (a.start_date < b.start_date ? 1 : -1)),
     [summaries],
   );
+  const visibleSummaries = useMemo(() => {
+    if (showEmptyWeeks) {
+      return ordered;
+    }
+    return ordered.filter((week) => week.totals.week_total_minutes > 0 || week.is_current);
+  }, [ordered, showEmptyWeeks]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 text-slate-100 md:px-6 xl:px-8">
@@ -108,21 +143,38 @@ export function WeekSummariesView() {
             Overview of multiple weeks in one place.
           </p>
         </div>
-        <Link
-          href="/"
-          className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
-        >
-          Back To Planner
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/finance"
+            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
+          >
+            Finance
+          </Link>
+          <Link
+            href="/"
+            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
+          >
+            Back To Planner
+          </Link>
+        </div>
       </section>
 
       {isLoading ? (
         <p className="mx-auto w-full max-w-[1700px] text-slate-300">Loading summaries...</p>
       ) : null}
       {error ? <p className="mx-auto w-full max-w-[1700px] text-rose-400">{error}</p> : null}
+      <section className="mx-auto flex w-full max-w-[1700px] items-center justify-end">
+        <button
+          type="button"
+          onClick={() => setShowEmptyWeeks((prev) => !prev)}
+          className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
+        >
+          {showEmptyWeeks ? "Hide Empty Weeks" : "Show Empty Weeks"}
+        </button>
+      </section>
 
       <section className="mx-auto grid w-full max-w-[1700px] gap-4 md:grid-cols-2 2xl:grid-cols-3">
-        {ordered.map((week) => (
+        {visibleSummaries.map((week) => (
           <article
             key={week.start_date}
             className={`rounded-2xl border p-4 shadow-sm ${
