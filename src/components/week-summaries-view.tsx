@@ -2,28 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-
-type SectionName = "main" | "second" | "learning" | "exercise";
-
-type WeekSummary = {
-  start_date: string;
-  end_date: string;
-  weekly_goal: string;
-  weekly_note: string;
-  totals: {
-    by_section_minutes: Record<SectionName, number>;
-    week_total_minutes: number;
-  };
-  notes_by_section: Record<SectionName, string[]>;
-  is_current: boolean;
-};
-
-type WeekSummariesResponse = {
-  summaries?: WeekSummary[];
-};
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010/api";
+import { getWeekSummaries } from "@/lib/planner-store";
+import type { SectionName, WeekSummary } from "@/lib/smart-paper-types";
 
 const SECTIONS: SectionName[] = ["main", "second", "learning", "exercise"];
 
@@ -97,11 +77,7 @@ export function WeekSummariesView() {
     let cancelled = false;
     async function loadSummaries() {
       try {
-        const response = await fetch(`${API_BASE_URL}/week-summaries/?span=8`);
-        if (!response.ok) {
-          throw new Error("Could not load week summaries");
-        }
-        const payload = (await response.json()) as WeekSummariesResponse;
+        const payload = await getWeekSummaries(8);
         if (cancelled) return;
         setSummaries((payload.summaries ?? []).map(normalizeWeekSummary));
       } catch (loadError) {

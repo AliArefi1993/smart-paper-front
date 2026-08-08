@@ -3,43 +3,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
-
-type SectionName = "main" | "second" | "learning" | "exercise";
-
-type SectionData = {
-  duration_minutes: number;
-  goal: string;
-  note: string;
-};
-
-type DayData = {
-  date: string;
-  weekday_index: number;
-  weekday_name: string;
-  sections: Record<SectionName, SectionData>;
-};
-
-type WeekTotals = {
-  by_section_minutes: Record<SectionName, number>;
-  week_total_minutes: number;
-};
-
-type WeekDetail = {
-  start_date: string;
-  end_date: string;
-  label: string;
-  weekly_goal: string;
-  weekly_note: string;
-  days: DayData[];
-  totals: WeekTotals;
-};
-
-type WeekItem = {
-  start_date: string;
-  end_date: string;
-  label: string;
-  is_current: boolean;
-};
+import { getWeek, getWeeks, saveWeek as saveWeekData } from "@/lib/planner-store";
+import type {
+  DayData,
+  SectionName,
+  WeekDetail,
+  WeekItem,
+  WeekTotals,
+} from "@/lib/smart-paper-types";
 
 type ThemeMode = "setup" | "dark";
 
@@ -49,9 +20,6 @@ type ThemeClasses = {
   title: string;
   line: string;
 };
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010/api";
 
 const SECTIONS: SectionName[] = ["main", "second", "learning", "exercise"];
 
@@ -279,15 +247,11 @@ export function WeeklyPlanner() {
     setMessage("");
     setError("");
     try {
-      const response = await fetch(`${API_BASE_URL}/weeks/${startDate}/`);
-      if (!response.ok) {
-        throw new Error("Could not load selected week");
-      }
-      const payload = (await response.json()) as WeekDetail;
+      const payload = await getWeek(startDate);
       setWeekDetail(payload);
     } catch (loadError) {
       setError(
-        loadError instanceof Error ? loadError.message : "Unknown error loading week",
+        loadError instanceof Error ? loadError.message : "Could not load selected week",
       );
     } finally {
       setIsLoadingWeek(false);
@@ -301,30 +265,11 @@ export function WeeklyPlanner() {
     setMessage("");
     setError("");
     try {
-      const response = await fetch(`${API_BASE_URL}/weeks/${weekDetail.start_date}/`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          weekly_goal: weekDetail.weekly_goal,
-          weekly_note: weekDetail.weekly_note,
-          days: weekDetail.days.map((day) => ({
-            date: day.date,
-            sections: day.sections,
-          })),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Could not save week data");
-      }
-
-      const payload = (await response.json()) as WeekDetail;
+      const payload = await saveWeekData(weekDetail);
       setWeekDetail(payload);
       setMessage("Saved successfully.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unknown save error");
+      setError(saveError instanceof Error ? saveError.message : "Could not save week data");
     } finally {
       setIsSaving(false);
     }
@@ -352,14 +297,7 @@ export function WeeklyPlanner() {
 
     async function loadInitialData() {
       try {
-        const weeksResponse = await fetch(`${API_BASE_URL}/weeks/?span=8`);
-        if (!weeksResponse.ok) {
-          throw new Error("Could not load weeks");
-        }
-        const weeksPayload = (await weeksResponse.json()) as {
-          current_week_start: string;
-          weeks: WeekItem[];
-        };
+        const weeksPayload = await getWeeks(8);
 
         if (cancelled) return;
 
@@ -368,14 +306,7 @@ export function WeeklyPlanner() {
         setIsLoadingWeeks(false);
         setIsLoadingWeek(true);
 
-        const weekResponse = await fetch(
-          `${API_BASE_URL}/weeks/${weeksPayload.current_week_start}/`,
-        );
-        if (!weekResponse.ok) {
-          throw new Error("Could not load selected week");
-        }
-
-        const weekPayload = (await weekResponse.json()) as WeekDetail;
+        const weekPayload = await getWeek(weeksPayload.current_week_start);
         if (cancelled) return;
 
         setWeekDetail(weekPayload);

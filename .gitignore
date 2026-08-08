@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/node_modules-blocked-*/
 /.pnp
 .pnp.*
 .yarn/*
@@ -15,10 +16,12 @@
 
 # next.js
 /.next/
+/.next-blocked-*/
 /out/
 
 # production
 /build
+*.apk
 
 # misc
 .DS_Store

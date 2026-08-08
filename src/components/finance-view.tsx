@@ -2,34 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-
-type IncomeEntry = {
-  id: number;
-  amount: number;
-  note: string;
-  received_on: string;
-};
-
-type FinancePayload = {
-  goal_amount: number;
-  total_income: number;
-  remaining_amount: number;
-  progress_percent: number;
-  unlock_ttl_seconds?: number;
-  entries: IncomeEntry[];
-};
-
-const DEFAULT_API_BASE_URL = "http://localhost:8010/api";
-
-function resolveApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL;
-  }
-  if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:8010/api`;
-  }
-  return DEFAULT_API_BASE_URL;
-}
+import {
+  addIncome as addIncomeData,
+  checkFinanceSession,
+  deleteIncome as deleteIncomeData,
+  editIncome,
+  getFinance,
+  saveFinanceGoal,
+  unlockFinanceSession,
+} from "@/lib/finance-store";
+import type { FinancePayload, IncomeEntry } from "@/lib/smart-paper-types";
 
 function formatMoney(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -38,7 +20,6 @@ function formatMoney(value: number): string {
 }
 
 export function FinanceView() {
-  const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
   const [data, setData] = useState<FinancePayload | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [isLocked, setIsLocked] = useState(true);
@@ -60,6 +41,10 @@ export function FinanceView() {
   const [message, setMessage] = useState("");
   const [sessionCheckIntervalMs, setSessionCheckIntervalMs] = useState(30000);
 
+  function isForbidden(errorValue: unknown): boolean {
+    return errorValue instanceof Response && errorValue.status === 403;
+  }
+
   function forceLock(messageText?: string) {
     setIsLocked(true);
     setData(null);
@@ -80,18 +65,7 @@ export function FinanceView() {
 
     async function bootstrap() {
       try {
-        const response = await fetch(`${apiBaseUrl}/finance/`, {
-          credentials: "include",
-        });
-        if (response.status === 403) {
-          if (cancelled) return;
-          forceLock("Session expired. Please enter PIN again.");
-          return;
-        }
-        if (!response.ok) {
-          throw new Error("Could not load finance data");
-        }
-        const payload = (await response.json()) as FinancePayload;
+        const payload = await getFinance();
         if (cancelled) return;
         setIsLocked(false);
         setData(payload);
@@ -101,6 +75,10 @@ export function FinanceView() {
         setGoalInput(payload.goal_amount ? String(payload.goal_amount) : "");
       } catch (loadError) {
         if (cancelled) return;
+        if (isForbidden(loadError)) {
+          forceLock("Session expired. Please enter PIN again.");
+          return;
+        }
         setError(loadError instanceof Error ? loadError.message : "Unknown load error");
       } finally {
         if (cancelled) return;
@@ -112,15 +90,13 @@ export function FinanceView() {
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl]);
+  }, []);
 
   useEffect(() => {
     if (isLocked) return;
     const intervalId = window.setInterval(async () => {
       try {
-        const response = await fetch(`${apiBaseUrl}/finance/`, {
-          credentials: "include",
-        });
+        const response = await checkFinanceSession();
         if (response.status === 403) {
           forceLock("Session expired. Please enter PIN again.");
         }
@@ -132,7 +108,7 @@ export function FinanceView() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [apiBaseUrl, isLocked, sessionCheckIntervalMs]);
+  }, [isLocked, sessionCheckIntervalMs]);
 
   const progressWidth = useMemo(() => {
     if (!data) return "0%";
@@ -150,26 +126,8 @@ export function FinanceView() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`${apiBaseUrl}/finance/unlock/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ pin: pinInput }),
-      });
-      if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error("Wrong PIN.");
-        }
-        throw new Error("Could not unlock finance page");
-      }
-
-      const financeResponse = await fetch(`${apiBaseUrl}/finance/`, {
-        credentials: "include",
-      });
-      if (!financeResponse.ok) {
-        throw new Error("Unlocked, but could not load finance data");
-      }
-      const payload = (await financeResponse.json()) as FinancePayload;
+      await unlockFinanceSession(pinInput);
+      const payload = await getFinance();
       if (payload.unlock_ttl_seconds && payload.unlock_ttl_seconds > 0) {
         setSessionCheckIntervalMs(payload.unlock_ttl_seconds * 1000);
       }
@@ -179,7 +137,13 @@ export function FinanceView() {
       setIsLocked(false);
       setMessage("Finance unlocked.");
     } catch (unlockError) {
-      setError(unlockError instanceof Error ? unlockError.message : "Unknown unlock error");
+      setError(
+        isForbidden(unlockError)
+          ? "Wrong PIN."
+          : unlockError instanceof Error
+            ? unlockError.message
+            : "Could not unlock finance page",
+      );
     } finally {
       setIsUnlocking(false);
     }
@@ -196,24 +160,15 @@ export function FinanceView() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`${apiBaseUrl}/finance/`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ goal_amount: goalValue }),
-      });
-      if (response.status === 403) {
-        forceLock("Session expired. Please enter PIN again.");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Could not save goal");
-      }
-      const payload = (await response.json()) as FinancePayload;
+      const payload = await saveFinanceGoal(goalValue);
       setData(payload);
       setMessage("Goal updated.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unknown save error");
+      if (isForbidden(saveError)) {
+        forceLock("Session expired. Please enter PIN again.");
+        return;
+      }
+      setError(saveError instanceof Error ? saveError.message : "Could not save goal");
     } finally {
       setIsSavingGoal(false);
     }
@@ -230,29 +185,17 @@ export function FinanceView() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`${apiBaseUrl}/finance/`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          income_amount: incomeValue,
-          income_note: incomeNote,
-        }),
-      });
-      if (response.status === 403) {
-        forceLock("Session expired. Please enter PIN again.");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Could not add income");
-      }
-      const payload = (await response.json()) as FinancePayload;
+      const payload = await addIncomeData(incomeValue, incomeNote);
       setData(payload);
       setIncomeInput("");
       setIncomeNote("");
       setMessage("Income added.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unknown save error");
+      if (isForbidden(saveError)) {
+        forceLock("Session expired. Please enter PIN again.");
+        return;
+      }
+      setError(saveError instanceof Error ? saveError.message : "Could not add income");
     } finally {
       setIsAddingIncome(false);
     }
@@ -263,22 +206,15 @@ export function FinanceView() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`${apiBaseUrl}/finance/incomes/${entryId}/`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (response.status === 403) {
-        forceLock("Session expired. Please enter PIN again.");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Could not delete income");
-      }
-      const payload = (await response.json()) as FinancePayload;
+      const payload = await deleteIncomeData(entryId);
       setData(payload);
       setMessage("Income deleted.");
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Unknown delete error");
+      if (isForbidden(deleteError)) {
+        forceLock("Session expired. Please enter PIN again.");
+        return;
+      }
+      setError(deleteError instanceof Error ? deleteError.message : "Could not delete income");
     } finally {
       setDeletingEntryId(null);
     }
@@ -315,29 +251,21 @@ export function FinanceView() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`${apiBaseUrl}/finance/incomes/${entryId}/`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          income_amount: amountValue,
-          income_note: editNoteInput,
-          income_date: editDateInput,
-        }),
-      });
-      if (response.status === 403) {
-        forceLock("Session expired. Please enter PIN again.");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Could not update income");
-      }
-      const payload = (await response.json()) as FinancePayload;
+      const payload = await editIncome(
+        entryId,
+        amountValue,
+        editNoteInput,
+        editDateInput,
+      );
       setData(payload);
       setMessage("Income updated.");
       cancelEdit();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unknown update error");
+      if (isForbidden(saveError)) {
+        forceLock("Session expired. Please enter PIN again.");
+        return;
+      }
+      setError(saveError instanceof Error ? saveError.message : "Could not update income");
     } finally {
       setIsSavingEdit(false);
     }

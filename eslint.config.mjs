@@ -9,6 +9,13 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".next-blocked-*/**",
+    "android/**/build/**",
+    "android/.gradle/**",
+    "android/app/src/main/assets/**",
+    "android/app/src/main/res/xml/config.xml",
+    "android/capacitor-cordova-android-plugins/**",
+    "node_modules-blocked-*/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
