@@ -13,6 +13,8 @@ const SECTION_LABELS: Record<SectionName, string> = {
   learning: "Learning",
   exercise: "Exercise",
 };
+const MONTH_OPTIONS = [1, 3, 6, 12];
+const DEFAULT_SUMMARY_MONTHS = 6;
 
 const SHAMSI_DATE_FORMATTER = new Intl.DateTimeFormat("en-u-ca-persian-nu-latn", {
   year: "numeric",
@@ -50,6 +52,10 @@ function toSafeNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
+function weeksForMonths(months: number): number {
+  return Math.ceil((months * 31) / 7);
+}
+
 function normalizeWeekSummary(week: WeekSummary): WeekSummary {
   const bySection = Object.fromEntries(
     SECTIONS.map((section) => [
@@ -64,7 +70,20 @@ function normalizeWeekSummary(week: WeekSummary): WeekSummary {
       by_section_minutes: bySection,
       week_total_minutes: toSafeNumber(week.totals?.week_total_minutes),
     },
+    details_by_section: Object.fromEntries(
+      SECTIONS.map((section) => [section, week.details_by_section?.[section] ?? []]),
+    ) as WeekSummary["details_by_section"],
   };
+}
+
+function hasSummaryContent(week: WeekSummary): boolean {
+  if (week.is_current || week.weekly_goal || week.weekly_note) {
+    return true;
+  }
+  if (week.totals.week_total_minutes > 0) {
+    return true;
+  }
+  return SECTIONS.some((section) => (week.details_by_section?.[section] ?? []).length > 0);
 }
 
 export function WeekSummariesView() {
@@ -72,12 +91,15 @@ export function WeekSummariesView() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [showEmptyWeeks, setShowEmptyWeeks] = useState(false);
+  const [summaryMonths, setSummaryMonths] = useState(DEFAULT_SUMMARY_MONTHS);
 
   useEffect(() => {
     let cancelled = false;
     async function loadSummaries() {
+      setIsLoading(true);
+      setError("");
       try {
-        const payload = await getWeekSummaries(8);
+        const payload = await getWeekSummaries(weeksForMonths(summaryMonths));
         if (cancelled) return;
         setSummaries((payload.summaries ?? []).map(normalizeWeekSummary));
       } catch (loadError) {
@@ -97,7 +119,7 @@ export function WeekSummariesView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [summaryMonths]);
 
   const ordered = useMemo(
     () => [...summaries].sort((a, b) => (a.start_date < b.start_date ? 1 : -1)),
@@ -107,7 +129,7 @@ export function WeekSummariesView() {
     if (showEmptyWeeks) {
       return ordered;
     }
-    return ordered.filter((week) => week.totals.week_total_minutes > 0 || week.is_current);
+    return ordered.filter(hasSummaryContent);
   }, [ordered, showEmptyWeeks]);
 
   return (
@@ -145,7 +167,26 @@ export function WeekSummariesView() {
         <p className="mx-auto w-full max-w-[1700px] text-slate-300">Loading summaries...</p>
       ) : null}
       {error ? <p className="mx-auto w-full max-w-[1700px] text-rose-400">{error}</p> : null}
-      <section className="mx-auto flex w-full max-w-[1700px] items-center justify-end">
+      <section className="mx-auto flex w-full max-w-[1700px] flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+        <label className="flex items-center gap-3 text-sm font-semibold text-slate-200">
+          Months In Summary
+          <select
+            value={summaryMonths}
+            onChange={(event) => setSummaryMonths(Number(event.target.value))}
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-teal-400"
+          >
+            {MONTH_OPTIONS.map((months) => (
+              <option key={months} value={months}>
+                {months} {months === 1 ? "month" : "months"}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <p className="text-sm text-slate-400">
+          Showing {visibleSummaries.length} of {summaries.length} loaded weeks.
+        </p>
+
         <button
           type="button"
           onClick={() => setShowEmptyWeeks((prev) => !prev)}
@@ -195,6 +236,45 @@ export function WeekSummariesView() {
                 {formatMinutes(week.totals.week_total_minutes)}
               </p>
             </div>
+
+            {SECTIONS.some((section) => (week.details_by_section?.[section] ?? []).length > 0) ? (
+              <div className="mt-4 space-y-3">
+                {SECTIONS.map((section) => {
+                  const details = week.details_by_section?.[section] ?? [];
+                  if (details.length === 0) return null;
+                  return (
+                    <div key={section} className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+                      <p className="text-xs font-semibold uppercase text-slate-400">
+                        {SECTION_LABELS[section]} Details
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {details.map((detail) => (
+                          <div
+                            key={`${detail.date}-${section}`}
+                            className="border-t border-slate-800 pt-2 first:border-t-0 first:pt-0"
+                          >
+                            <p className="text-xs font-semibold text-slate-200">
+                              {detail.weekday_name} {formatShamsiDate(detail.date)} -{" "}
+                              {formatMinutes(detail.duration_minutes)}
+                            </p>
+                            {detail.goal ? (
+                              <p className="mt-1 text-xs text-slate-300">
+                                Goal: {detail.goal}
+                              </p>
+                            ) : null}
+                            {detail.note ? (
+                              <p className="mt-1 text-xs text-slate-400">
+                                Note: {detail.note}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </article>
         ))}
       </section>

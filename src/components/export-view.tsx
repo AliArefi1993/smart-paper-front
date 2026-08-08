@@ -8,6 +8,7 @@ import {
   importExportPayload,
   type ExportFormat,
 } from "@/lib/export-store";
+import { unlockFinanceSession } from "@/lib/finance-store";
 import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
 
 function isForbidden(errorValue: unknown): boolean {
@@ -40,25 +41,36 @@ export function ExportView() {
   const [activeFormat, setActiveFormat] = useState<ExportFormat | null>(null);
   const [importMode, setImportMode] = useState<ImportMode>("merge");
   const [isImporting, setIsImporting] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [isUnlocking, setIsUnlocking] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  async function loadExportPreview() {
+    const nextPayload = await getExportPayload();
+    setPayload(nextPayload);
+    setIsLocked(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadExportPreview() {
+    async function bootstrap() {
       try {
         const nextPayload = await getExportPayload();
         if (cancelled) return;
         setPayload(nextPayload);
+        setIsLocked(false);
       } catch (loadError) {
         if (cancelled) return;
+        if (isForbidden(loadError)) {
+          setIsLocked(true);
+          setError("");
+          return;
+        }
         setError(
-          isForbidden(loadError)
-            ? "Finance is locked. Unlock finance first, then come back to export."
-            : loadError instanceof Error
-              ? loadError.message
-              : "Could not prepare export.",
+          loadError instanceof Error ? loadError.message : "Could not prepare export.",
         );
       } finally {
         if (cancelled) return;
@@ -66,11 +78,38 @@ export function ExportView() {
       }
     }
 
-    void loadExportPreview();
+    void bootstrap();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  async function handleUnlock() {
+    if (!pinInput.trim()) {
+      setError("PIN is required.");
+      return;
+    }
+
+    setIsUnlocking(true);
+    setError("");
+    setMessage("");
+    try {
+      await unlockFinanceSession(pinInput);
+      await loadExportPreview();
+      setPinInput("");
+      setMessage("Finance unlocked.");
+    } catch (unlockError) {
+      setError(
+        isForbidden(unlockError)
+          ? "Wrong PIN."
+          : unlockError instanceof Error
+            ? unlockError.message
+            : "Could not unlock Finance.",
+      );
+    } finally {
+      setIsUnlocking(false);
+    }
+  }
 
   async function handleExport(format: ExportFormat) {
     setActiveFormat(format);
@@ -81,12 +120,16 @@ export function ExportView() {
       await saveFile(file.filename, file.mimeType, file.content);
       setMessage(`${file.filename} is ready.`);
     } catch (exportError) {
+      if (isForbidden(exportError)) {
+        setIsLocked(true);
+        setPayload(null);
+        setError("Finance is locked. Enter PIN to export.");
+        return;
+      }
       setError(
-        isForbidden(exportError)
-          ? "Finance is locked. Unlock finance first, then come back to export."
-          : exportError instanceof Error
-            ? exportError.message
-            : "Could not create export file.",
+        exportError instanceof Error
+          ? exportError.message
+          : "Could not create export file.",
       );
     } finally {
       setActiveFormat(null);
@@ -110,14 +153,18 @@ export function ExportView() {
         `Imported ${result.weeks_imported} weeks and ${result.income_entries_imported} income entries.`,
       );
     } catch (importError) {
+      if (isForbidden(importError)) {
+        setIsLocked(true);
+        setPayload(null);
+        setError("Finance is locked. Enter PIN to import.");
+        return;
+      }
       setError(
-        isForbidden(importError)
-          ? "Finance is locked. Unlock finance first, then come back to import."
-          : importError instanceof SyntaxError
-            ? "Choose the JSON backup file from Smart Paper."
-            : importError instanceof Error
-              ? importError.message
-              : "Could not import this file.",
+        importError instanceof SyntaxError
+          ? "Choose the JSON backup file from Smart Paper."
+          : importError instanceof Error
+            ? importError.message
+            : "Could not import this file.",
       );
     } finally {
       setIsImporting(false);
@@ -153,6 +200,35 @@ export function ExportView() {
         {isLoading ? <p className="text-slate-300">Preparing export...</p> : null}
         {error ? <p className="text-rose-300">{error}</p> : null}
         {message ? <p className="text-emerald-300">{message}</p> : null}
+
+        {isLocked ? (
+          <form
+            className="max-w-sm"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleUnlock();
+            }}
+          >
+            <label className="block text-sm font-semibold text-slate-200" htmlFor="export-pin">
+              Finance PIN
+            </label>
+            <input
+              id="export-pin"
+              type="password"
+              value={pinInput}
+              onChange={(event) => setPinInput(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-slate-100 outline-none focus:border-teal-400"
+              autoComplete="current-password"
+            />
+            <button
+              type="submit"
+              disabled={isUnlocking}
+              className="mt-3 rounded-xl bg-teal-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-teal-400 disabled:opacity-60"
+            >
+              {isUnlocking ? "Unlocking..." : "Unlock Export"}
+            </button>
+          </form>
+        ) : null}
 
         {payload ? (
           <>

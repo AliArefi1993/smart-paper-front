@@ -47,6 +47,16 @@ export type WeekSummary = {
   weekly_note: string;
   totals: WeekTotals;
   notes_by_section: Record<SectionName, string[]>;
+  details_by_section?: Record<
+    SectionName,
+    {
+      date: string;
+      weekday_name: string;
+      duration_minutes: number;
+      goal: string;
+      note: string;
+    }[]
+  >;
   is_current: boolean;
 };
 

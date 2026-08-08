@@ -8,6 +8,7 @@ import type {
   SectionName,
   WeekDetail,
   WeekListPayload,
+  WeekSummary,
   WeekSummariesResponse,
   WeekTotals,
 } from "@/lib/smart-paper-types";
@@ -205,6 +206,7 @@ export async function getLocalWeekSummaries(
       weekly_note: week.weekly_note,
       totals: week.totals,
       notes_by_section: collectNotesBySection(week.days),
+      details_by_section: collectDetailsBySection(week.days),
       is_current: week.start_date === currentWeekStart,
     };
   });
@@ -226,6 +228,37 @@ function collectNotesBySection(days: DayData[]): Record<SectionName, string[]> {
     }
   }
   return notes;
+}
+
+function collectDetailsBySection(days: DayData[]): WeekSummary["details_by_section"] {
+  const details = {
+    main: [],
+    second: [],
+    learning: [],
+    exercise: [],
+  } as NonNullable<WeekSummary["details_by_section"]>;
+
+  for (const day of days) {
+    for (const section of SECTIONS) {
+      const sectionData = day.sections[section];
+      if (
+        sectionData.duration_minutes === 0 &&
+        !sectionData.goal.trim() &&
+        !sectionData.note.trim()
+      ) {
+        continue;
+      }
+      details[section].push({
+        date: day.date,
+        weekday_name: day.weekday_name,
+        duration_minutes: sectionData.duration_minutes,
+        goal: sectionData.goal.trim(),
+        note: sectionData.note.trim(),
+      });
+    }
+  }
+
+  return details;
 }
 
 function calculateTotals(days: DayData[]): WeekTotals {
