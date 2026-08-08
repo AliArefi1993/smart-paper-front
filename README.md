@@ -57,3 +57,24 @@ Optional: copy it to an easier filename:
 cd /home/aliarefi/Documents/programming/playground/smart-paper-front
 cp android/app/build/outputs/apk/debug/app-debug.apk SmartPaper-local-debug.apk
 ```
+
+## Export Data
+
+Open the app and go to `Export`.
+
+Available files:
+- `smart-paper-export.xlsx` is the human-readable Excel file with separate sheets for overview, weeks, day sections, and income.
+- `smart-paper-ai-review.md` is a clean text file you can paste into an AI to ask for feedback or questions.
+- `smart-paper-export.json` is the full backup format.
+- `smart-paper-export.csv` is a simple spreadsheet import format.
+
+In the backend web app, unlock Finance before exporting. In the Android app, unlock Finance first as well; Android exports from phone storage.
+
+## Import Data
+
+Open `Export`, unlock Finance, then use `Choose JSON Backup`.
+
+- `Merge / upsert` keeps existing data and updates matching weeks or income entries from the backup.
+- `Delete old data first` clears planner and finance data before importing the backup.
+
+Import uses `smart-paper-export.json`. Excel, CSV, and AI Markdown are export-only formats.

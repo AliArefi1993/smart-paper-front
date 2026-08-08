@@ -1,6 +1,9 @@
 import type {
   DayData,
+  ExportPayload,
   FinancePayload,
+  ImportMode,
+  ImportResult,
   IncomeEntry,
   SectionName,
   WeekDetail,
@@ -132,6 +135,12 @@ function saveStoredWeek(week: WeekDetail): WeekDetail {
     [week.start_date]: normalized,
   });
   return normalized;
+}
+
+function clearStoredData(): void {
+  const storage = requireBrowserStorage();
+  storage.removeItem(WEEKS_KEY);
+  storage.removeItem(FINANCE_KEY);
 }
 
 function getOrCreateWeek(startDate: string): WeekDetail {
@@ -365,4 +374,82 @@ export async function editLocalIncome(
         : entry,
     ),
   });
+}
+
+export async function getLocalExportPayload(): Promise<ExportPayload> {
+  assertFinanceUnlocked();
+  const weeks = Object.values(getStoredWeeks()).sort((a, b) =>
+    a.start_date < b.start_date ? -1 : 1,
+  );
+  return {
+    exported_at: new Date().toISOString(),
+    weeks,
+    finance: formatFinance(getStoredFinance()),
+  };
+}
+
+export async function importLocalExportPayload(
+  payload: ExportPayload,
+  mode: ImportMode,
+): Promise<ImportResult> {
+  assertFinanceUnlocked();
+  if (!Array.isArray(payload.weeks) || !payload.finance) {
+    throw new Error("Import file must be a Smart Paper JSON backup.");
+  }
+
+  if (mode === "replace") {
+    clearStoredData();
+  }
+
+  let weeksImported = 0;
+  for (const importedWeek of payload.weeks) {
+    if (!importedWeek?.start_date || !Array.isArray(importedWeek.days)) {
+      continue;
+    }
+    const existing = getOrCreateWeek(importedWeek.start_date);
+    saveStoredWeek({
+      ...existing,
+      ...importedWeek,
+      totals: calculateTotals(importedWeek.days),
+    });
+    weeksImported += 1;
+  }
+
+  const currentFinance = getStoredFinance();
+  const importedEntries = Array.isArray(payload.finance.entries)
+    ? payload.finance.entries
+    : [];
+  const entriesById = new Map<number, IncomeEntry>();
+  for (const entry of currentFinance.entries) {
+    entriesById.set(entry.id, entry);
+  }
+  importedEntries.forEach((entry, index) => {
+    if (!entry || entry.amount <= 0 || !entry.received_on) {
+      return;
+    }
+    const id =
+      Number.isInteger(entry.id) && entry.id > 0 ? entry.id : Date.now() + index;
+    entriesById.set(id, {
+      id,
+      amount: entry.amount,
+      note: entry.note ?? "",
+      received_on: entry.received_on,
+    });
+  });
+
+  const financeGoalUpdated = Number.isInteger(payload.finance.goal_amount);
+  writeStoredFinance({
+    goal_amount: financeGoalUpdated
+      ? payload.finance.goal_amount
+      : currentFinance.goal_amount,
+    entries: [...entriesById.values()],
+  });
+
+  return {
+    mode,
+    weeks_imported: weeksImported,
+    income_entries_imported: importedEntries.length,
+    finance_goal_updated: financeGoalUpdated,
+    payload: await getLocalExportPayload(),
+  };
 }

@@ -127,6 +127,12 @@ export function WeekSummariesView() {
             Finance
           </Link>
           <Link
+            href="/export"
+            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
+          >
+            Export
+          </Link>
+          <Link
             href="/"
             className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
           >

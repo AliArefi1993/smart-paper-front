@@ -491,6 +491,16 @@ export function WeeklyPlanner() {
             >
               Finance
             </Link>
+            <Link
+              href="/export"
+              className={`rounded-xl border px-3 py-1 text-xs font-semibold transition ${
+                isDark
+                  ? "border-slate-600 bg-slate-800 text-slate-100 hover:border-teal-400 hover:text-teal-300"
+                  : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
+              }`}
+            >
+              Export
+            </Link>
             <div className="flex items-center gap-2 rounded-full border border-slate-400/40 bg-white/10 p-1">
             <button
               type="button"

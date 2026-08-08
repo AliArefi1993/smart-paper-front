@@ -293,6 +293,12 @@ export function FinanceView() {
           >
             Summaries
           </Link>
+          <Link
+            href="/export"
+            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+          >
+            Export
+          </Link>
         </div>
       </section>
 

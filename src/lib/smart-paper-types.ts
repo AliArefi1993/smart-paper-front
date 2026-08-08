@@ -69,3 +69,19 @@ export type FinancePayload = {
   unlock_ttl_seconds?: number;
   entries: IncomeEntry[];
 };
+
+export type ExportPayload = {
+  exported_at: string;
+  weeks: WeekDetail[];
+  finance: FinancePayload;
+};
+
+export type ImportMode = "merge" | "replace";
+
+export type ImportResult = {
+  mode: ImportMode;
+  weeks_imported: number;
+  income_entries_imported: number;
+  finance_goal_updated: boolean;
+  payload: ExportPayload;
+};
