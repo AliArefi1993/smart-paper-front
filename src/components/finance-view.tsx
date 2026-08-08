@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { LanguageToggle } from "@/components/language-toggle";
+import {
+  formatDecimal,
+  formatMoney,
+  formatReadableShamsiDate,
+} from "@/lib/formatters";
 import {
   addIncome as addIncomeData,
   checkFinanceSession,
@@ -11,15 +17,11 @@ import {
   saveFinanceGoal,
   unlockFinanceSession,
 } from "@/lib/finance-store";
+import { useLanguage } from "@/lib/use-language";
 import type { FinancePayload, IncomeEntry } from "@/lib/smart-paper-types";
 
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 export function FinanceView() {
+  const { language, isPersian, t } = useLanguage();
   const [data, setData] = useState<FinancePayload | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [isLocked, setIsLocked] = useState(true);
@@ -76,10 +78,10 @@ export function FinanceView() {
       } catch (loadError) {
         if (cancelled) return;
         if (isForbidden(loadError)) {
-          forceLock("Session expired. Please enter PIN again.");
+          forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
           return;
         }
-        setError(loadError instanceof Error ? loadError.message : "Unknown load error");
+        setError(loadError instanceof Error ? loadError.message : t("loading"));
       } finally {
         if (cancelled) return;
         setIsLoading(false);
@@ -90,7 +92,7 @@ export function FinanceView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isLocked) return;
@@ -98,7 +100,7 @@ export function FinanceView() {
       try {
         const response = await checkFinanceSession();
         if (response.status === 403) {
-          forceLock("Session expired. Please enter PIN again.");
+          forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         }
       } catch {
         // Ignore transient network errors during background checks.
@@ -108,7 +110,7 @@ export function FinanceView() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [isLocked, sessionCheckIntervalMs]);
+  }, [isLocked, sessionCheckIntervalMs, t]);
 
   const progressWidth = useMemo(() => {
     if (!data) return "0%";
@@ -118,7 +120,7 @@ export function FinanceView() {
 
   async function unlockFinance() {
     if (!pinInput.trim()) {
-      setError("PIN is required.");
+      setError(t("enterPin"));
       return;
     }
 
@@ -135,14 +137,14 @@ export function FinanceView() {
       setGoalInput(payload.goal_amount ? String(payload.goal_amount) : "");
       setPinInput("");
       setIsLocked(false);
-      setMessage("Finance unlocked.");
+      setMessage(t("financeUnlocked"));
     } catch (unlockError) {
       setError(
         isForbidden(unlockError)
-          ? "Wrong PIN."
+          ? t("wrongPin")
           : unlockError instanceof Error
             ? unlockError.message
-            : "Could not unlock finance page",
+            : t("finance"),
       );
     } finally {
       setIsUnlocking(false);
@@ -152,7 +154,7 @@ export function FinanceView() {
   async function saveGoal() {
     const goalValue = Number(goalInput);
     if (!Number.isInteger(goalValue) || goalValue < 0) {
-      setError("Goal must be a zero or positive number.");
+      setError(t("goalMustBePositive"));
       return;
     }
 
@@ -162,13 +164,13 @@ export function FinanceView() {
     try {
       const payload = await saveFinanceGoal(goalValue);
       setData(payload);
-      setMessage("Goal updated.");
+      setMessage(`${t("goal")} ${t("savedSuccessfully")}`);
     } catch (saveError) {
       if (isForbidden(saveError)) {
-        forceLock("Session expired. Please enter PIN again.");
+        forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
-      setError(saveError instanceof Error ? saveError.message : "Could not save goal");
+      setError(saveError instanceof Error ? saveError.message : t("saveGoal"));
     } finally {
       setIsSavingGoal(false);
     }
@@ -177,7 +179,7 @@ export function FinanceView() {
   async function addIncome() {
     const incomeValue = Number(incomeInput);
     if (!Number.isInteger(incomeValue) || incomeValue <= 0) {
-      setError("Income must be greater than zero.");
+      setError(t("incomeMustBePositive"));
       return;
     }
 
@@ -189,13 +191,13 @@ export function FinanceView() {
       setData(payload);
       setIncomeInput("");
       setIncomeNote("");
-      setMessage("Income added.");
+      setMessage(t("incomeAdded"));
     } catch (saveError) {
       if (isForbidden(saveError)) {
-        forceLock("Session expired. Please enter PIN again.");
+        forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
-      setError(saveError instanceof Error ? saveError.message : "Could not add income");
+      setError(saveError instanceof Error ? saveError.message : t("addIncome"));
     } finally {
       setIsAddingIncome(false);
     }
@@ -208,13 +210,13 @@ export function FinanceView() {
     try {
       const payload = await deleteIncomeData(entryId);
       setData(payload);
-      setMessage("Income deleted.");
+      setMessage(t("incomeDeleted"));
     } catch (deleteError) {
       if (isForbidden(deleteError)) {
-        forceLock("Session expired. Please enter PIN again.");
+        forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
-      setError(deleteError instanceof Error ? deleteError.message : "Could not delete income");
+      setError(deleteError instanceof Error ? deleteError.message : t("delete"));
     } finally {
       setDeletingEntryId(null);
     }
@@ -239,11 +241,11 @@ export function FinanceView() {
   async function saveEdit(entryId: number) {
     const amountValue = Number(editAmountInput);
     if (!Number.isInteger(amountValue) || amountValue <= 0) {
-      setError("Edited income must be greater than zero.");
+      setError(t("editedIncomePositive"));
       return;
     }
     if (!editDateInput) {
-      setError("Date is required.");
+      setError(t("dateRequired"));
       return;
     }
 
@@ -258,66 +260,67 @@ export function FinanceView() {
         editDateInput,
       );
       setData(payload);
-      setMessage("Income updated.");
+      setMessage(t("incomeUpdated"));
       cancelEdit();
     } catch (saveError) {
       if (isForbidden(saveError)) {
-        forceLock("Session expired. Please enter PIN again.");
+        forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
-      setError(saveError instanceof Error ? saveError.message : "Could not update income");
+      setError(saveError instanceof Error ? saveError.message : t("incomeUpdated"));
     } finally {
       setIsSavingEdit(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-emerald-950 via-slate-950 to-slate-900 px-4 py-6 text-slate-100 md:px-6 xl:px-8">
+    <main dir={isPersian ? "rtl" : "ltr"} className="min-h-screen bg-gradient-to-b from-emerald-950 via-slate-950 to-slate-900 px-4 py-6 text-slate-100 md:px-6 xl:px-8">
       <section className="mx-auto flex w-full max-w-5xl items-center justify-between rounded-3xl border border-emerald-700/70 bg-emerald-900/20 p-5 shadow-lg">
         <div>
-          <h1 className="text-3xl font-bold">Financial Progress</h1>
+          <h1 className="text-3xl font-bold">{t("finance")}</h1>
           <p className="mt-2 text-sm text-emerald-100/80">
-            Add income, set your target, and watch your progress grow.
+            {t("pathToGoal")}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <LanguageToggle />
           <Link
             href="/"
             className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
           >
-            Planner
+            {t("planner")}
           </Link>
           <Link
             href="/summaries"
             className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
           >
-            Summaries
+            {t("summaries")}
           </Link>
           <Link
             href="/export"
             className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
           >
-            Export
+            {t("export")}
           </Link>
         </div>
       </section>
 
-      {isLoading ? <p className="mx-auto mt-6 w-full max-w-5xl text-slate-300">Loading...</p> : null}
+      {isLoading ? <p className="mx-auto mt-6 w-full max-w-5xl text-slate-300">{t("loading")}</p> : null}
       {error ? <p className="mx-auto mt-3 w-full max-w-5xl text-rose-400">{error}</p> : null}
       {message ? <p className="mx-auto mt-3 w-full max-w-5xl text-emerald-300">{message}</p> : null}
 
       {!isLoading && isLocked ? (
         <section className="mx-auto mt-6 w-full max-w-md rounded-2xl border border-amber-600/70 bg-amber-900/20 p-5">
-          <h2 className="text-lg font-semibold text-amber-100">Finance Is Locked</h2>
+          <h2 className="text-lg font-semibold text-amber-100">{t("financeIsLocked")}</h2>
           <p className="mt-2 text-sm text-amber-100/80">
-            Enter PIN to view your income and progress.
+            {t("enterPin")}
           </p>
           <input
             type="password"
             value={pinInput}
             onChange={(event) => setPinInput(event.target.value)}
             className="mt-4 w-full rounded-lg border border-amber-500/60 bg-slate-950 px-3 py-2 text-sm outline-none ring-amber-400 focus:ring"
-            placeholder="Enter PIN"
+            placeholder={t("enterPin")}
           />
           <button
             type="button"
@@ -325,7 +328,7 @@ export function FinanceView() {
             disabled={isUnlocking}
             className="mt-3 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-60"
           >
-            {isUnlocking ? "Unlocking..." : "Unlock"}
+            {isUnlocking ? t("unlocking") : t("unlock")}
           </button>
         </section>
       ) : null}
@@ -338,13 +341,13 @@ export function FinanceView() {
               onClick={() => setShowGoalSettings((prev) => !prev)}
               className="rounded-md border border-slate-500/60 px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-700/40"
             >
-              {showGoalSettings ? "Close Goal Settings" : "Goal Settings"}
+              {showGoalSettings ? t("closeGoalSettings") : t("goalSettings")}
             </button>
           </section>
 
           {showGoalSettings ? (
             <section className="mx-auto mt-3 w-full max-w-5xl rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <h2 className="text-sm font-semibold text-slate-200">Year Goal Settings</h2>
+              <h2 className="text-sm font-semibold text-slate-200">{t("yearGoalSettings")}</h2>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <input
                   type="number"
@@ -352,7 +355,7 @@ export function FinanceView() {
                   value={goalInput}
                   onChange={(event) => setGoalInput(event.target.value)}
                   className="w-full max-w-sm rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm outline-none ring-emerald-400 focus:ring"
-                  placeholder="Example: 10000"
+                  placeholder="10000"
                 />
                 <button
                   type="button"
@@ -360,7 +363,7 @@ export function FinanceView() {
                   disabled={isSavingGoal}
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
                 >
-                  {isSavingGoal ? "Saving..." : "Save Goal"}
+                  {isSavingGoal ? t("saving") : t("saveGoal")}
                 </button>
               </div>
             </section>
@@ -368,30 +371,30 @@ export function FinanceView() {
 
           <section className="mx-auto mt-6 grid w-full max-w-5xl gap-4 md:grid-cols-3">
             <article className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Year Total Income</p>
+              <p className="text-xs uppercase tracking-wide text-slate-400">{t("yearTotalIncome")}</p>
               <p className="mt-2 text-2xl font-bold text-emerald-300">
-                {formatMoney(data.total_income)}
+                {formatMoney(data.total_income, language)}
               </p>
             </article>
             <article className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Year Goal</p>
+              <p className="text-xs uppercase tracking-wide text-slate-400">{t("yearGoal")}</p>
               <p className="mt-2 text-2xl font-bold">
-                {data.goal_amount > 0 ? formatMoney(data.goal_amount) : "Not Set"}
+                {data.goal_amount > 0 ? formatMoney(data.goal_amount, language) : t("notSet")}
               </p>
             </article>
             <article className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Remaining To Goal</p>
+              <p className="text-xs uppercase tracking-wide text-slate-400">{t("remainingToGoal")}</p>
               <p className="mt-2 text-2xl font-bold text-amber-300">
-                {formatMoney(data.remaining_amount)}
+                {formatMoney(data.remaining_amount, language)}
               </p>
             </article>
           </section>
 
           <section className="mx-auto mt-4 w-full max-w-5xl rounded-2xl border border-emerald-700/70 bg-emerald-900/20 p-4">
             <div className="flex items-end justify-between gap-3">
-              <p className="text-sm font-semibold">Path To Goal</p>
+              <p className="text-sm font-semibold">{t("pathToGoal")}</p>
               <p className="text-lg font-bold text-emerald-200">
-                {data.progress_percent.toFixed(2)}%
+                {formatDecimal(data.progress_percent, language)}%
               </p>
             </div>
             <div className="mt-3 h-4 overflow-hidden rounded-full bg-slate-800">
@@ -404,21 +407,21 @@ export function FinanceView() {
 
           <section className="mx-auto mt-6 w-full max-w-5xl">
             <article className="rounded-2xl border border-cyan-700/60 bg-cyan-950/20 p-6 shadow-[0_0_0_1px_rgba(6,182,212,0.15)]">
-              <h2 className="text-lg font-semibold">Add Income</h2>
+              <h2 className="text-lg font-semibold">{t("addIncome")}</h2>
               <input
                 type="number"
                 min={1}
                 value={incomeInput}
                 onChange={(event) => setIncomeInput(event.target.value)}
                 className="mt-4 w-full rounded-lg border border-cyan-700/60 bg-slate-950 px-4 py-3 text-base outline-none ring-cyan-400 focus:ring"
-                placeholder="Income amount"
+                placeholder={t("incomeAmount")}
               />
               <input
                 type="text"
                 value={incomeNote}
                 onChange={(event) => setIncomeNote(event.target.value)}
                 className="mt-3 w-full rounded-lg border border-cyan-700/60 bg-slate-950 px-4 py-3 text-base outline-none ring-cyan-400 focus:ring"
-                placeholder="Note (optional)"
+                placeholder={t("noteOptional")}
               />
               <button
                 type="button"
@@ -426,15 +429,15 @@ export function FinanceView() {
                 disabled={isAddingIncome}
                 className="mt-4 rounded-lg bg-cyan-500 px-5 py-3 text-base font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
               >
-                {isAddingIncome ? "Adding..." : "Add Income"}
+                {isAddingIncome ? t("adding") : t("addIncome")}
               </button>
             </article>
           </section>
 
           <section className="mx-auto mt-6 w-full max-w-5xl rounded-2xl border border-emerald-700/50 bg-emerald-950/15 p-5 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]">
-            <h2 className="text-xl font-bold text-emerald-100">Income History</h2>
+            <h2 className="text-xl font-bold text-emerald-100">{t("incomeHistory")}</h2>
             {data.entries.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-400">No income added yet.</p>
+              <p className="mt-3 text-sm text-slate-400">{t("noIncomeAdded")}</p>
             ) : (
               <div className="mt-4 space-y-3">
                 {data.entries.map((entry) => (
@@ -469,9 +472,9 @@ export function FinanceView() {
                     ) : (
                       <div>
                         <p className="text-sm font-semibold text-emerald-300">
-                          +{formatMoney(entry.amount)}
+                          +{formatMoney(entry.amount, language)}
                         </p>
-                        <p className="text-xs text-slate-400">{entry.note || "No note"}</p>
+                        <p className="text-xs text-slate-400">{entry.note || t("noNote")}</p>
                       </div>
                     )}
                     <div className="flex items-center gap-3">
@@ -483,25 +486,27 @@ export function FinanceView() {
                             disabled={isSavingEdit}
                             className="rounded-md border border-emerald-500/60 px-2 py-1 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-60"
                           >
-                            {isSavingEdit ? "Saving..." : "Save"}
+                            {isSavingEdit ? t("saving") : t("save")}
                           </button>
                           <button
                             type="button"
                             onClick={cancelEdit}
                             className="rounded-md border border-slate-500/60 px-2 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-500/15"
                           >
-                            Cancel
+                            {t("cancel")}
                           </button>
                         </>
                       ) : (
                         <>
-                          <p className="text-xs text-slate-400">{entry.received_on}</p>
+                          <p className="text-xs text-slate-400">
+                            {formatReadableShamsiDate(entry.received_on, language)}
+                          </p>
                           <button
                             type="button"
                             onClick={() => startEdit(entry)}
                             className="rounded-md border border-cyan-500/60 px-2 py-1 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/15"
                           >
-                            Edit
+                            {t("edit")}
                           </button>
                           <button
                             type="button"
@@ -509,7 +514,7 @@ export function FinanceView() {
                             disabled={deletingEntryId === entry.id}
                             className="rounded-md border border-rose-500/60 px-2 py-1 text-xs font-semibold text-rose-300 hover:bg-rose-500/15 disabled:opacity-60"
                           >
-                            {deletingEntryId === entry.id ? "Deleting..." : "Delete"}
+                            {deletingEntryId === entry.id ? t("deleting") : t("delete")}
                           </button>
                         </>
                       )}

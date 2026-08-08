@@ -20,3 +20,24 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+[dir="rtl"] {
+  font-family:
+    Vazirmatn,
+    "Noto Sans Arabic",
+    Tahoma,
+    Arial,
+    sans-serif;
+}
+
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select,
+[dir="rtl"] button {
+  font-family:
+    Vazirmatn,
+    "Noto Sans Arabic",
+    Tahoma,
+    Arial,
+    sans-serif;
+}

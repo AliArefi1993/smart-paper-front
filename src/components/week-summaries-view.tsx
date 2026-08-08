@@ -2,51 +2,37 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { LanguageToggle } from "@/components/language-toggle";
+import {
+  formatDuration,
+  formatNumber,
+  formatReadableShamsiDate,
+  formatReadableShamsiWeekRange,
+} from "@/lib/formatters";
+import type { TranslationKey } from "@/lib/i18n";
 import { getWeekSummaries } from "@/lib/planner-store";
+import { useLanguage } from "@/lib/use-language";
 import type { SectionName, WeekSummary } from "@/lib/smart-paper-types";
 
 const SECTIONS: SectionName[] = ["main", "second", "learning", "exercise"];
 
-const SECTION_LABELS: Record<SectionName, string> = {
-  main: "Main",
-  second: "Second",
-  learning: "Learning",
-  exercise: "Exercise",
+const SECTION_TRANSLATION_KEYS: Record<SectionName, TranslationKey> = {
+  main: "main",
+  second: "second",
+  learning: "learning",
+  exercise: "exercise",
+};
+const WEEKDAY_TRANSLATION_KEYS: Record<string, TranslationKey> = {
+  Saturday: "saturday",
+  Sunday: "sunday",
+  Monday: "monday",
+  Tuesday: "tuesday",
+  Wednesday: "wednesday",
+  Thursday: "thursday",
+  Friday: "friday",
 };
 const MONTH_OPTIONS = [1, 3, 6, 12];
 const DEFAULT_SUMMARY_MONTHS = 6;
-
-const SHAMSI_DATE_FORMATTER = new Intl.DateTimeFormat("en-u-ca-persian-nu-latn", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function parseIsoDate(isoDate: string): Date {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function formatShamsiDate(isoDate: string): string {
-  const parts = SHAMSI_DATE_FORMATTER.formatToParts(parseIsoDate(isoDate));
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-  const month = parts.find((part) => part.type === "month")?.value ?? "";
-  const day = parts.find((part) => part.type === "day")?.value ?? "";
-  return `${year}/${month}/${day}`;
-}
-
-function formatShamsiWeekRange(startIso: string, endIso: string): string {
-  return `${formatShamsiDate(startIso)} to ${formatShamsiDate(endIso)}`;
-}
-
-function formatMinutes(value: number): string {
-  if (!Number.isFinite(value) || value < 0) {
-    return "00:00";
-  }
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-}
 
 function toSafeNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
@@ -87,6 +73,7 @@ function hasSummaryContent(week: WeekSummary): boolean {
 }
 
 export function WeekSummariesView() {
+  const { language, isPersian, t } = useLanguage();
   const [summaries, setSummaries] = useState<WeekSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -107,7 +94,7 @@ export function WeekSummariesView() {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Unknown error loading summaries",
+            : t("loadingSummaries"),
         );
       } finally {
         if (cancelled) return;
@@ -119,7 +106,7 @@ export function WeekSummariesView() {
     return () => {
       cancelled = true;
     };
-  }, [summaryMonths]);
+  }, [summaryMonths, t]);
 
   const ordered = useMemo(
     () => [...summaries].sort((a, b) => (a.start_date < b.start_date ? 1 : -1)),
@@ -134,42 +121,44 @@ export function WeekSummariesView() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 text-slate-100 md:px-6 xl:px-8">
+      <div dir={isPersian ? "rtl" : "ltr"} className="contents">
       <section className="mx-auto flex w-full max-w-[1700px] items-center justify-between rounded-3xl border border-slate-700 bg-slate-900/85 p-5 shadow-sm">
         <div>
-          <h1 className="text-3xl font-bold">Weekly Summaries</h1>
+          <h1 className="text-3xl font-bold">{t("summaries")}</h1>
           <p className="mt-2 text-sm text-slate-300">
-            Overview of multiple weeks in one place.
+            {t("summaryDescription")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <LanguageToggle />
           <Link
             href="/finance"
             className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
           >
-            Finance
+            {t("finance")}
           </Link>
           <Link
             href="/export"
             className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
           >
-            Export
+            {t("export")}
           </Link>
           <Link
             href="/"
             className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
           >
-            Back To Planner
+            {t("backToPlanner")}
           </Link>
         </div>
       </section>
 
       {isLoading ? (
-        <p className="mx-auto w-full max-w-[1700px] text-slate-300">Loading summaries...</p>
+        <p className="mx-auto w-full max-w-[1700px] text-slate-300">{t("loadingSummaries")}</p>
       ) : null}
       {error ? <p className="mx-auto w-full max-w-[1700px] text-rose-400">{error}</p> : null}
       <section className="mx-auto flex w-full max-w-[1700px] flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
         <label className="flex items-center gap-3 text-sm font-semibold text-slate-200">
-          Months In Summary
+          {t("monthsInSummary")}
           <select
             value={summaryMonths}
             onChange={(event) => setSummaryMonths(Number(event.target.value))}
@@ -177,14 +166,17 @@ export function WeekSummariesView() {
           >
             {MONTH_OPTIONS.map((months) => (
               <option key={months} value={months}>
-                {months} {months === 1 ? "month" : "months"}
+                {formatNumber(months, language)}
               </option>
             ))}
           </select>
         </label>
 
         <p className="text-sm text-slate-400">
-          Showing {visibleSummaries.length} of {summaries.length} loaded weeks.
+          {t("showingLoadedWeeks", {
+            visible: formatNumber(visibleSummaries.length, language),
+            total: formatNumber(summaries.length, language),
+          })}
         </p>
 
         <button
@@ -192,7 +184,7 @@ export function WeekSummariesView() {
           onClick={() => setShowEmptyWeeks((prev) => !prev)}
           className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
         >
-          {showEmptyWeeks ? "Hide Empty Weeks" : "Show Empty Weeks"}
+          {showEmptyWeeks ? t("hideEmptyWeeks") : t("showEmptyWeeks")}
         </button>
       </section>
 
@@ -207,33 +199,33 @@ export function WeekSummariesView() {
             }`}
           >
             <h2 className="text-lg font-semibold">
-              {formatShamsiWeekRange(week.start_date, week.end_date)}
-              {week.is_current ? " (Current)" : ""}
+              {formatReadableShamsiWeekRange(week.start_date, week.end_date, language)}
+              {week.is_current ? ` (${t("current")})` : ""}
             </h2>
             <p className="mt-2 text-xs text-slate-300">
-              Weekly Goal: {week.weekly_goal || "No goal"}
+              {t("weeklyGoal")}: {week.weekly_goal || t("noGoal")}
             </p>
             <p className="mt-1 text-xs text-slate-400">
-              Weekly Note: {week.weekly_note || "No note"}
+              {t("weeklyNote")}: {week.weekly_note || t("noNote")}
             </p>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {SECTIONS.map((section) => (
                 <div key={section} className="rounded-xl border border-slate-700 bg-slate-800/70 p-3">
                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                    {SECTION_LABELS[section]}
+                    {t(SECTION_TRANSLATION_KEYS[section])}
                   </p>
                   <p className="mt-1 text-base font-semibold text-slate-100">
-                    {formatMinutes(week.totals.by_section_minutes[section])}
+                    {formatDuration(week.totals.by_section_minutes[section], language)}
                   </p>
                 </div>
               ))}
             </div>
 
             <div className="mt-3 rounded-xl bg-teal-600 p-3 text-white">
-              <p className="text-xs uppercase tracking-wide text-teal-100">Total</p>
+              <p className="text-xs uppercase tracking-wide text-teal-100">{t("total")}</p>
               <p className="mt-1 text-base font-semibold">
-                {formatMinutes(week.totals.week_total_minutes)}
+                {formatDuration(week.totals.week_total_minutes, language)}
               </p>
             </div>
 
@@ -245,7 +237,7 @@ export function WeekSummariesView() {
                   return (
                     <div key={section} className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
                       <p className="text-xs font-semibold uppercase text-slate-400">
-                        {SECTION_LABELS[section]} Details
+                        {t(SECTION_TRANSLATION_KEYS[section])} {t("sectionDetails")}
                       </p>
                       <div className="mt-2 space-y-2">
                         {details.map((detail) => (
@@ -254,17 +246,20 @@ export function WeekSummariesView() {
                             className="border-t border-slate-800 pt-2 first:border-t-0 first:pt-0"
                           >
                             <p className="text-xs font-semibold text-slate-200">
-                              {detail.weekday_name} {formatShamsiDate(detail.date)} -{" "}
-                              {formatMinutes(detail.duration_minutes)}
+                              {isPersian
+                                ? t(WEEKDAY_TRANSLATION_KEYS[detail.weekday_name] ?? "saturday")
+                                : detail.weekday_name}{" "}
+                              {formatReadableShamsiDate(detail.date, language)} -{" "}
+                              {formatDuration(detail.duration_minutes, language)}
                             </p>
                             {detail.goal ? (
                               <p className="mt-1 text-xs text-slate-300">
-                                Goal: {detail.goal}
+                                {t("goal")}: {detail.goal}
                               </p>
                             ) : null}
                             {detail.note ? (
                               <p className="mt-1 text-xs text-slate-400">
-                                Note: {detail.note}
+                                {t("note")}: {detail.note}
                               </p>
                             ) : null}
                           </div>
@@ -278,6 +273,7 @@ export function WeekSummariesView() {
           </article>
         ))}
       </section>
+      </div>
     </main>
   );
 }

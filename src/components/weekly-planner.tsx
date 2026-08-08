@@ -3,7 +3,17 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
+import { LanguageToggle } from "@/components/language-toggle";
+import {
+  formatCompactShamsiWeekRange,
+  formatDuration,
+  formatNumber,
+  formatReadableShamsiDate,
+  formatReadableShamsiWeekRange,
+} from "@/lib/formatters";
 import { getWeek, getWeeks, saveWeek as saveWeekData } from "@/lib/planner-store";
+import type { TranslationKey } from "@/lib/i18n";
+import { useLanguage } from "@/lib/use-language";
 import type {
   DayData,
   SectionName,
@@ -23,11 +33,21 @@ type ThemeClasses = {
 
 const SECTIONS: SectionName[] = ["main", "second", "learning", "exercise"];
 
-const SECTION_LABELS: Record<SectionName, string> = {
-  main: "Main",
-  second: "Second",
-  learning: "Learning",
-  exercise: "Exercise",
+const SECTION_TRANSLATION_KEYS: Record<SectionName, TranslationKey> = {
+  main: "main",
+  second: "second",
+  learning: "learning",
+  exercise: "exercise",
+};
+
+const WEEKDAY_TRANSLATION_KEYS: Record<string, TranslationKey> = {
+  Saturday: "saturday",
+  Sunday: "sunday",
+  Monday: "monday",
+  Tuesday: "tuesday",
+  Wednesday: "wednesday",
+  Thursday: "thursday",
+  Friday: "friday",
 };
 
 const SECTION_THEME_SETUP: Record<SectionName, ThemeClasses> = {
@@ -184,43 +204,28 @@ const WEEKDAY_SHORT: Record<string, string> = {
   Friday: "Fri",
 };
 
-const SHAMSI_DATE_FORMATTER = new Intl.DateTimeFormat("en-u-ca-persian-nu-latn", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function parseIsoDate(isoDate: string): Date {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function formatShamsiDate(isoDate: string): string {
-  const parts = SHAMSI_DATE_FORMATTER.formatToParts(parseIsoDate(isoDate));
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-  const month = parts.find((part) => part.type === "month")?.value ?? "";
-  const day = parts.find((part) => part.type === "day")?.value ?? "";
-  return `${year}/${month}/${day}`;
-}
-
-function formatShamsiWeekRange(startIso: string, endIso: string): string {
-  return `${formatShamsiDate(startIso)} to ${formatShamsiDate(endIso)}`;
-}
-
-function formatMinutes(value: number): string {
-  if (!value) return "";
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-}
-
 type OrderedNoteItem = {
   dayName: string;
   dayDate: string;
   note: string;
 };
 
+function parseIsoDate(isoDate: string): Date {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function weekOffsetFromCurrent(week: WeekItem): number {
+  const start = parseIsoDate(week.start_date);
+  const today = new Date();
+  const daysSinceSaturday = (today.getDay() + 1) % 7;
+  today.setDate(today.getDate() - daysSinceSaturday);
+  today.setHours(0, 0, 0, 0);
+  return Math.round((start.getTime() - today.getTime()) / (7 * 24 * 60 * 60 * 1000));
+}
+
 export function WeeklyPlanner() {
+  const { language, isPersian, t } = useLanguage();
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
   const [weeks, setWeeks] = useState<WeekItem[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
@@ -243,6 +248,17 @@ export function WeeklyPlanner() {
     ? "w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none ring-teal-400 placeholder:text-slate-400 focus:ring"
     : "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none ring-teal-500 focus:ring";
 
+  function formatWeekChoiceLabel(week: WeekItem): string {
+    const offset = weekOffsetFromCurrent(week);
+    if (offset === 0) return t("currentWeek");
+    if (offset === -1) return t("previousWeek");
+    if (offset === 1) return t("nextWeek");
+    if (offset < 0) {
+      return t("weeksAgo", { count: formatNumber(Math.abs(offset), language) });
+    }
+    return t("weeksAhead", { count: formatNumber(offset, language) });
+  }
+
   async function fetchWeek(startDate: string) {
     setMessage("");
     setError("");
@@ -251,7 +267,7 @@ export function WeeklyPlanner() {
       setWeekDetail(payload);
     } catch (loadError) {
       setError(
-        loadError instanceof Error ? loadError.message : "Could not load selected week",
+        loadError instanceof Error ? loadError.message : t("loadingSelectedWeek"),
       );
     } finally {
       setIsLoadingWeek(false);
@@ -267,9 +283,9 @@ export function WeeklyPlanner() {
     try {
       const payload = await saveWeekData(weekDetail);
       setWeekDetail(payload);
-      setMessage("Saved successfully.");
+      setMessage(t("savedSuccessfully"));
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not save week data");
+      setError(saveError instanceof Error ? saveError.message : t("saveWeek"));
     } finally {
       setIsSaving(false);
     }
@@ -461,6 +477,7 @@ export function WeeklyPlanner() {
 
   return (
     <main
+      dir={isPersian ? "rtl" : "ltr"}
       className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 md:px-6 xl:px-8 ${
         isDark ? "text-slate-100" : "text-slate-900"
       }`}
@@ -469,8 +486,9 @@ export function WeeklyPlanner() {
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-5 shadow-sm backdrop-blur ${panelClass}`}
       >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">Weekly Smart Paper</h1>
-          <div className="flex items-center gap-2">
+          <h1 className="text-3xl font-bold">{t("weeklySmartPaper")}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <LanguageToggle />
             <Link
               href="/summaries"
               className={`rounded-xl border px-3 py-1 text-xs font-semibold transition ${
@@ -479,7 +497,7 @@ export function WeeklyPlanner() {
                   : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
               }`}
             >
-              Summaries
+              {t("summaries")}
             </Link>
             <Link
               href="/finance"
@@ -489,7 +507,7 @@ export function WeeklyPlanner() {
                   : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
               }`}
             >
-              Finance
+              {t("finance")}
             </Link>
             <Link
               href="/export"
@@ -499,7 +517,7 @@ export function WeeklyPlanner() {
                   : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
               }`}
             >
-              Export
+              {t("export")}
             </Link>
             <div className="flex items-center gap-2 rounded-full border border-slate-400/40 bg-white/10 p-1">
             <button
@@ -513,7 +531,7 @@ export function WeeklyPlanner() {
                     : "text-slate-700 hover:bg-slate-200"
               }`}
             >
-              Setup 1
+              {t("focusMode")}
             </button>
             <button
               type="button"
@@ -526,16 +544,16 @@ export function WeeklyPlanner() {
                     : "text-slate-700 hover:bg-slate-200"
               }`}
             >
-              Dark Mode
+              {t("darkMode")}
             </button>
             </div>
           </div>
         </div>
         <p className={`mt-2 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-          Pick a week, fill Saturday to Friday, then press Enter to save.
+          {t("summaryDescription")}
         </p>
         <p className={`mt-1 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-          Dates are shown in Shamsi (Persian calendar) with English labels.
+          {t("durationInputMinutes")}
         </p>
       </section>
 
@@ -547,12 +565,12 @@ export function WeeklyPlanner() {
             isDark ? "text-slate-400" : "text-slate-500"
           }`}
         >
-          Weeks
+          {t("weeks")}
         </h2>
         {isLoadingWeeks ? (
-          <p className={isDark ? "text-slate-300" : "text-slate-600"}>Loading weeks...</p>
+          <p className={isDark ? "text-slate-300" : "text-slate-600"}>{t("loadingWeeks")}</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
             {weeks.map((week) => {
               const isSelected = week.start_date === selectedWeekStart;
               return (
@@ -560,10 +578,10 @@ export function WeeklyPlanner() {
                   type="button"
                   key={week.start_date}
                   onClick={() => handleWeekSelect(week.start_date)}
-                  className={`rounded-full border px-4 py-2 text-xs transition ${
+                  className={`min-h-20 rounded-2xl border px-4 py-3 text-start text-xs transition ${
                     isSelected
                       ? isDark
-                        ? "border-teal-500 bg-teal-500 text-slate-950"
+                        ? "border-teal-500 bg-teal-500 text-slate-950 shadow-lg shadow-teal-950/40"
                         : "border-teal-600 bg-teal-600 text-white"
                       : week.is_current
                         ? isDark
@@ -574,8 +592,12 @@ export function WeeklyPlanner() {
                           : "border-slate-300 bg-white text-slate-700 hover:border-teal-400 hover:text-teal-700"
                   }`}
                 >
-                  {formatShamsiWeekRange(week.start_date, week.end_date)}
-                  {week.is_current ? " (Current)" : ""}
+                  <span className="block text-sm font-bold">
+                    {formatWeekChoiceLabel(week)}
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-5 opacity-85">
+                    {formatCompactShamsiWeekRange(week.start_date, week.end_date, language)}
+                  </span>
                 </button>
               );
             })}
@@ -588,11 +610,15 @@ export function WeeklyPlanner() {
           <div className="flex flex-col items-center">
             <h2 className="text-xl font-semibold">
               {weekDetail
-                ? formatShamsiWeekRange(weekDetail.start_date, weekDetail.end_date)
-                : "Week Details"}
+                ? formatReadableShamsiWeekRange(
+                    weekDetail.start_date,
+                    weekDetail.end_date,
+                    language,
+                  )
+                : t("weekDetails")}
             </h2>
             <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-              Duration input is in minutes.
+              {t("durationInputMinutes")}
             </p>
           </div>
           <button
@@ -601,7 +627,7 @@ export function WeeklyPlanner() {
             disabled={!weekDetail || isSaving}
             className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
-            {isSaving ? "Saving..." : "Save Week"}
+            {isSaving ? t("saving") : t("saveWeek")}
           </button>
         </div>
 
@@ -610,7 +636,7 @@ export function WeeklyPlanner() {
 
         {isLoadingWeek ? (
           <p className={isDark ? "text-slate-300" : "text-slate-600"}>
-            Loading selected week...
+            {t("loadingSelectedWeek")}
           </p>
         ) : null}
 
@@ -619,13 +645,13 @@ export function WeeklyPlanner() {
             <article
               className={`mx-auto w-full max-w-[1500px] rounded-2xl border p-4 ${mutedPanelClass}`}
             >
-              <h3 className="mb-3 text-base font-semibold">Week Goal</h3>
+              <h3 className="mb-3 text-base font-semibold">{t("weekGoal")}</h3>
               <div className="grid gap-2">
                 <textarea
                   value={weekDetail.weekly_goal}
                   onChange={(event) => updateWeeklyGoal(event.target.value)}
                   onKeyDown={handleTextareaEnterToSave}
-                  placeholder="Write the main goal for this week"
+                  placeholder={t("writeMainGoalForWeek")}
                   rows={2}
                   className={inputClass}
                 />
@@ -633,7 +659,7 @@ export function WeeklyPlanner() {
                   value={weekDetail.weekly_note}
                   onChange={(event) => updateWeeklyNote(event.target.value)}
                   onKeyDown={handleTextareaEnterToSave}
-                  placeholder="Write any extra weekly note"
+                  placeholder={t("writeExtraWeeklyNote")}
                   rows={3}
                   className={inputClass}
                 />
@@ -652,17 +678,17 @@ export function WeeklyPlanner() {
                     <h3
                       className={`text-base font-semibold ${dayTheme[day.weekday_index].title}`}
                     >
-                      {day.weekday_name}
+                      {t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday")}
                     </h3>
                     <span
                       className={`rounded-full px-2 py-1 text-[11px] font-semibold ${dayTheme[day.weekday_index].badge}`}
                     >
-                      Day {day.weekday_index + 1}
+                      {t("day")} {formatNumber(day.weekday_index + 1, language)}
                     </span>
                   </header>
                   <div className="mb-3">
                     <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-500"}`}>
-                      {formatShamsiDate(day.date)}
+                      {formatReadableShamsiDate(day.date, language)}
                     </p>
                   </div>
 
@@ -676,7 +702,7 @@ export function WeeklyPlanner() {
                           <span
                             className={`rounded-full px-2 py-1 text-[11px] font-semibold ${sectionTheme[section].badge}`}
                           >
-                            {SECTION_LABELS[section]}
+                            {t(SECTION_TRANSLATION_KEYS[section])}
                           </span>
                         </div>
                         <div className="grid gap-2">
@@ -696,7 +722,7 @@ export function WeeklyPlanner() {
                           onKeyDown={handleEnterToSave}
                           type="number"
                           min={0}
-                          placeholder="Minutes"
+                          placeholder={t("minutes")}
                           className={inputClass}
                         />
                         <input
@@ -705,7 +731,7 @@ export function WeeklyPlanner() {
                             updateSectionGoal(day.date, section, event.target.value)
                           }
                           onKeyDown={handleEnterToSave}
-                          placeholder="Goal for this section"
+                          placeholder={t("goalForSection")}
                           className={inputClass}
                         />
                         <input
@@ -714,7 +740,7 @@ export function WeeklyPlanner() {
                             updateNote(day.date, section, event.target.value)
                           }
                           onKeyDown={handleEnterToSave}
-                          placeholder="Write a short note"
+                          placeholder={t("writeShortNote")}
                           className={inputClass}
                         />
                         </div>
@@ -732,7 +758,7 @@ export function WeeklyPlanner() {
         <section
           className={`mx-auto w-full max-w-[1600px] rounded-3xl border p-4 shadow-sm ${panelClass}`}
         >
-          <h2 className="mb-3 text-lg font-semibold">Week Totals</h2>
+          <h2 className="mb-3 text-lg font-semibold">{t("weekTotals")}</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {SECTIONS.map((section) => (
               <div
@@ -742,10 +768,10 @@ export function WeeklyPlanner() {
                 <p
                   className={`text-xs uppercase tracking-wide font-semibold ${sectionTheme[section].title}`}
                 >
-                  {SECTION_LABELS[section]}
+                  {t(SECTION_TRANSLATION_KEYS[section])}
                 </p>
                 <p className="mt-1 text-lg font-semibold">
-                  {formatMinutes(totals.by_section_minutes[section]) || "00:00"}
+                  {formatDuration(totals.by_section_minutes[section], language)}
                 </p>
                 <div className={`mt-3 border-t pt-2 ${sectionTheme[section].line}`}>
                   <p
@@ -753,7 +779,7 @@ export function WeeklyPlanner() {
                       isDark ? "text-slate-300" : "text-slate-500"
                     }`}
                   >
-                    Notes
+                    {t("notes")}
                   </p>
                   {notesBySection[section].length === 0 ? (
                     <p
@@ -763,7 +789,7 @@ export function WeeklyPlanner() {
                           : "border-slate-200 bg-white/80 text-slate-600"
                       }`}
                     >
-                      No notes.
+                      {t("noNotesYet")}
                     </p>
                   ) : (
                     <ul className="mt-2 space-y-2">
@@ -776,7 +802,10 @@ export function WeeklyPlanner() {
                               : "border-slate-200 bg-white/80 text-slate-800"
                           }`}
                         >
-                          {WEEKDAY_SHORT[item.dayName] ?? item.dayName}: {item.note}
+                          {isPersian
+                            ? t(WEEKDAY_TRANSLATION_KEYS[item.dayName] ?? "saturday")
+                            : WEEKDAY_SHORT[item.dayName] ?? item.dayName}
+                          : {item.note}
                         </li>
                       ))}
                     </ul>
@@ -785,9 +814,9 @@ export function WeeklyPlanner() {
               </div>
             ))}
             <div className="rounded-xl bg-teal-600 p-3 text-white">
-              <p className="text-xs uppercase tracking-wide text-teal-100">Total</p>
+              <p className="text-xs uppercase tracking-wide text-teal-100">{t("total")}</p>
               <p className="mt-1 text-lg font-semibold">
-                {formatMinutes(totals.week_total_minutes) || "00:00"}
+                {formatDuration(totals.week_total_minutes, language)}
               </p>
             </div>
           </div>
