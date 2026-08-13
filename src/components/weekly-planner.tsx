@@ -484,10 +484,25 @@ export function WeeklyPlanner() {
     void fetchWeek(startDate);
   }
 
+  function renderSaveWeekButton(className = "", compact = false) {
+    return (
+      <button
+        type="button"
+        onClick={() => void saveWeek()}
+        disabled={!weekDetail || isSaving}
+        className={`rounded-xl bg-teal-600 font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400 ${
+          compact ? "px-3 py-2 text-xs" : "px-4 py-2 text-sm"
+        } ${className}`}
+      >
+        {isSaving ? t("saving") : t("saveWeek")}
+      </button>
+    );
+  }
+
   return (
     <main
       dir={isPersian ? "rtl" : "ltr"}
-      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 transition-colors md:px-6 xl:px-8 ${pageClass}`}
+      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 pb-28 pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${pageClass}`}
     >
       <section
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-5 shadow-sm backdrop-blur ${panelClass}`}
@@ -616,14 +631,7 @@ export function WeeklyPlanner() {
               {t("durationInputMinutes")}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void saveWeek()}
-            disabled={!weekDetail || isSaving}
-            className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-          >
-            {isSaving ? t("saving") : t("saveWeek")}
-          </button>
+          {renderSaveWeekButton()}
         </div>
 
         {message ? (
@@ -666,6 +674,7 @@ export function WeeklyPlanner() {
                   rows={3}
                   className={inputClass}
                 />
+                {renderSaveWeekButton("justify-self-end px-4", true)}
               </div>
             </article>
 
@@ -725,6 +734,7 @@ export function WeeklyPlanner() {
                           onKeyDown={handleEnterToSave}
                           type="number"
                           min={0}
+                          inputMode="numeric"
                           placeholder={t("minutes")}
                           className={inputClass}
                         />
@@ -749,6 +759,9 @@ export function WeeklyPlanner() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div className="mt-3">
+                    {renderSaveWeekButton("w-full", true)}
                   </div>
                 </article>
               ))}
@@ -824,6 +837,26 @@ export function WeeklyPlanner() {
             </div>
           </div>
         </section>
+      ) : null}
+      {weekDetail ? (
+        <div
+          className={`fixed inset-x-0 bottom-0 z-30 border-t px-4 py-3 shadow-2xl md:hidden ${
+            isDark
+              ? "border-slate-700 bg-slate-950/95"
+              : "border-slate-200 bg-white/95"
+          }`}
+        >
+          <div className="mx-auto flex max-w-md items-center gap-3">
+            <p
+              className={`min-w-0 flex-1 text-xs font-medium ${
+                isDark ? "text-slate-200" : "text-slate-700"
+              }`}
+            >
+              {message || error || t("durationInputMinutes")}
+            </p>
+            {renderSaveWeekButton("shrink-0 px-4", true)}
+          </div>
+        </div>
       ) : null}
     </main>
   );
