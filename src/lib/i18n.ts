@@ -6,6 +6,7 @@ export const translations = {
   en: {
     addIncome: "Add Income",
     adding: "Adding...",
+    allChangesSaved: "All changes saved.",
     aiReviewFile: "AI review file",
     backToPlanner: "Back To Planner",
     cancel: "Cancel",
@@ -99,6 +100,7 @@ export const translations = {
     unlock: "Unlock",
     unlockExport: "Unlock Export",
     unlocking: "Unlocking...",
+    unsavedChanges: "Unsaved changes",
     weekDetails: "Week Details",
     weekGoal: "Week Goal",
     weekTotals: "Week Totals",
@@ -123,6 +125,7 @@ export const translations = {
   fa: {
     addIncome: "افزودن درآمد",
     adding: "در حال افزودن...",
+    allChangesSaved: "همه تغییرات ذخیره شده‌اند.",
     aiReviewFile: "فایل بازخورد هوش مصنوعی",
     backToPlanner: "بازگشت به برنامه",
     cancel: "لغو",
@@ -216,6 +219,7 @@ export const translations = {
     unlock: "باز کردن",
     unlockExport: "باز کردن خروجی",
     unlocking: "در حال باز کردن...",
+    unsavedChanges: "تغییرات ذخیره‌نشده",
     weekDetails: "جزئیات هفته",
     weekGoal: "هدف هفته",
     weekTotals: "جمع هفته",

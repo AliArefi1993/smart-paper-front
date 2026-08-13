@@ -104,96 +104,6 @@ const SECTION_THEME_DARK: Record<SectionName, ThemeClasses> = {
   },
 };
 
-const DAY_THEME_SETUP: Record<number, ThemeClasses> = {
-  0: {
-    container: "border-stone-300 bg-stone-100/80",
-    badge: "bg-stone-700 text-stone-100",
-    title: "text-stone-900",
-    line: "border-stone-300",
-  },
-  1: {
-    container: "border-slate-300 bg-slate-100/80",
-    badge: "bg-slate-700 text-slate-100",
-    title: "text-slate-900",
-    line: "border-slate-300",
-  },
-  2: {
-    container: "border-cyan-200 bg-cyan-100/70",
-    badge: "bg-cyan-700 text-cyan-100",
-    title: "text-cyan-900",
-    line: "border-cyan-200",
-  },
-  3: {
-    container: "border-sky-200 bg-sky-100/70",
-    badge: "bg-sky-700 text-sky-100",
-    title: "text-sky-900",
-    line: "border-sky-200",
-  },
-  4: {
-    container: "border-violet-200 bg-violet-100/70",
-    badge: "bg-violet-700 text-violet-100",
-    title: "text-violet-900",
-    line: "border-violet-200",
-  },
-  5: {
-    container: "border-pink-200 bg-pink-100/70",
-    badge: "bg-pink-700 text-pink-100",
-    title: "text-pink-900",
-    line: "border-pink-200",
-  },
-  6: {
-    container: "border-emerald-200 bg-emerald-100/70",
-    badge: "bg-emerald-700 text-emerald-100",
-    title: "text-emerald-900",
-    line: "border-emerald-200",
-  },
-};
-
-const DAY_THEME_DARK: Record<number, ThemeClasses> = {
-  0: {
-    container: "border-slate-600 bg-slate-900/90",
-    badge: "bg-slate-700 text-slate-100",
-    title: "text-slate-100",
-    line: "border-slate-600",
-  },
-  1: {
-    container: "border-zinc-600 bg-slate-900/90",
-    badge: "bg-zinc-700 text-zinc-100",
-    title: "text-zinc-100",
-    line: "border-zinc-600",
-  },
-  2: {
-    container: "border-blue-700/70 bg-slate-900/90",
-    badge: "bg-blue-500 text-white",
-    title: "text-blue-200",
-    line: "border-blue-700/60",
-  },
-  3: {
-    container: "border-violet-700/70 bg-slate-900/90",
-    badge: "bg-violet-500 text-white",
-    title: "text-violet-200",
-    line: "border-violet-700/60",
-  },
-  4: {
-    container: "border-rose-700/70 bg-slate-900/90",
-    badge: "bg-rose-500 text-white",
-    title: "text-rose-200",
-    line: "border-rose-700/60",
-  },
-  5: {
-    container: "border-amber-700/70 bg-slate-900/90",
-    badge: "bg-amber-400 text-slate-950",
-    title: "text-amber-200",
-    line: "border-amber-700/60",
-  },
-  6: {
-    container: "border-emerald-700/70 bg-slate-900/90",
-    badge: "bg-emerald-400 text-slate-950",
-    title: "text-emerald-200",
-    line: "border-emerald-700/60",
-  },
-};
-
 const WEEKDAY_SHORT: Record<string, string> = {
   Saturday: "Sat",
   Sunday: "Sun",
@@ -229,14 +139,15 @@ export function WeeklyPlanner() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
   const [weeks, setWeeks] = useState<WeekItem[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
+  const [activeDayDate, setActiveDayDate] = useState<string>("");
   const [weekDetail, setWeekDetail] = useState<WeekDetail | null>(null);
   const [isLoadingWeeks, setIsLoadingWeeks] = useState(true);
   const [isLoadingWeek, setIsLoadingWeek] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const isDark = themeMode === "dark";
-  const dayTheme = isDark ? DAY_THEME_DARK : DAY_THEME_SETUP;
   const sectionTheme = isDark ? SECTION_THEME_DARK : SECTION_THEME_SETUP;
   const panelClass = isDark
     ? "border-slate-700 bg-slate-900/92 text-slate-100 shadow-slate-950/30"
@@ -274,6 +185,7 @@ export function WeeklyPlanner() {
     try {
       const payload = await getWeek(startDate);
       setWeekDetail(payload);
+      setHasUnsavedChanges(false);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : t("loadingSelectedWeek"),
@@ -292,6 +204,7 @@ export function WeeklyPlanner() {
     try {
       const payload = await saveWeekData(weekDetail);
       setWeekDetail(payload);
+      setHasUnsavedChanges(false);
       setMessage(t("savedSuccessfully"));
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : t("saveWeek"));
@@ -335,6 +248,7 @@ export function WeeklyPlanner() {
         if (cancelled) return;
 
         setWeekDetail(weekPayload);
+        setHasUnsavedChanges(false);
       } catch (loadError) {
         if (cancelled) return;
         setError(
@@ -383,6 +297,8 @@ export function WeeklyPlanner() {
   }, [weekDetail]);
 
   function updateDuration(dayDate: string, section: SectionName, value: number): void {
+    const nextDuration = Number.isFinite(value) ? Math.max(0, value) : 0;
+    setHasUnsavedChanges(true);
     setWeekDetail((previous) => {
       if (!previous) return previous;
 
@@ -394,7 +310,7 @@ export function WeeklyPlanner() {
             ...day.sections,
             [section]: {
               ...day.sections[section],
-              duration_minutes: Math.max(0, value),
+              duration_minutes: nextDuration,
             },
           },
         };
@@ -408,7 +324,19 @@ export function WeeklyPlanner() {
     });
   }
 
+  function updateDurationInput(dayDate: string, section: SectionName, value: string): void {
+    const parsedValue = Number.parseInt(value, 10);
+    updateDuration(dayDate, section, Number.isFinite(parsedValue) ? parsedValue : 0);
+  }
+
+  function adjustDuration(dayDate: string, section: SectionName, delta: number): void {
+    const currentDay = weekDetail?.days.find((day) => day.date === dayDate);
+    const currentMinutes = currentDay?.sections[section].duration_minutes ?? 0;
+    updateDuration(dayDate, section, currentMinutes + delta);
+  }
+
   function updateNote(dayDate: string, section: SectionName, note: string): void {
+    setHasUnsavedChanges(true);
     setWeekDetail((previous) => {
       if (!previous) return previous;
 
@@ -434,6 +362,7 @@ export function WeeklyPlanner() {
   }
 
   function updateSectionGoal(dayDate: string, section: SectionName, goal: string): void {
+    setHasUnsavedChanges(true);
     setWeekDetail((previous) => {
       if (!previous) return previous;
 
@@ -459,6 +388,7 @@ export function WeeklyPlanner() {
   }
 
   function updateWeeklyGoal(goal: string): void {
+    setHasUnsavedChanges(true);
     setWeekDetail((previous) => {
       if (!previous) return previous;
       return {
@@ -469,6 +399,7 @@ export function WeeklyPlanner() {
   }
 
   function updateWeeklyNote(note: string): void {
+    setHasUnsavedChanges(true);
     setWeekDetail((previous) => {
       if (!previous) return previous;
       return {
@@ -480,8 +411,45 @@ export function WeeklyPlanner() {
 
   function handleWeekSelect(startDate: string): void {
     setSelectedWeekStart(startDate);
+    setActiveDayDate("");
     setIsLoadingWeek(true);
     void fetchWeek(startDate);
+  }
+
+  function resolvedActiveDayDate(): string {
+    if (!weekDetail) return "";
+    if (weekDetail.days.some((day) => day.date === activeDayDate)) return activeDayDate;
+
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayInWeek = weekDetail.days.find((day) => day.date === todayIso);
+    return todayInWeek?.date ?? weekDetail.days[0]?.date ?? "";
+  }
+
+  function dayTotalMinutes(day: DayData): number {
+    return SECTIONS.reduce(
+      (total, section) => total + day.sections[section].duration_minutes,
+      0,
+    );
+  }
+
+  function dayHasDetails(day: DayData): boolean {
+    return SECTIONS.some((section) => {
+      const data = day.sections[section];
+      return Boolean(data.duration_minutes || data.goal.trim() || data.note.trim());
+    });
+  }
+
+  function saveStatusText(): string {
+    if (error) return error;
+    if (isSaving) return t("saving");
+    if (hasUnsavedChanges) return t("unsavedChanges");
+    return message || t("allChangesSaved");
+  }
+
+  function saveStatusClass(): string {
+    if (error) return isDark ? "text-rose-300" : "text-rose-700";
+    if (hasUnsavedChanges) return isDark ? "text-amber-200" : "text-amber-700";
+    return isDark ? "text-emerald-300" : "text-emerald-700";
   }
 
   function renderSaveWeekButton(className = "", compact = false) {
@@ -499,10 +467,21 @@ export function WeeklyPlanner() {
     );
   }
 
+  function renderFieldLabel(label: string, helper?: string) {
+    return (
+      <span className="mb-1 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase text-current opacity-75">
+        <span>{label}</span>
+        {helper ? <span className="font-medium normal-case opacity-75">{helper}</span> : null}
+      </span>
+    );
+  }
+
+  const activeDate = resolvedActiveDayDate();
+
   return (
     <main
       dir={isPersian ? "rtl" : "ltr"}
-      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 pb-28 pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${pageClass}`}
+      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${pageClass}`}
     >
       <section
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-5 shadow-sm backdrop-blur ${panelClass}`}
@@ -570,17 +549,24 @@ export function WeeklyPlanner() {
       <section
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-4 shadow-sm ${panelClass}`}
       >
-        <h2
-          className={`mb-3 text-sm font-semibold uppercase tracking-wide ${
-            isDark ? "text-slate-400" : "text-slate-500"
-          }`}
-        >
-          {t("weeks")}
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2
+            className={`text-sm font-semibold uppercase ${
+              isDark ? "text-slate-400" : "text-slate-500"
+            }`}
+          >
+            {t("weeks")}
+          </h2>
+          {totals ? (
+            <span className={`text-xs font-semibold ${isDark ? "text-teal-200" : "text-teal-700"}`}>
+              {formatDuration(totals.week_total_minutes, language)}
+            </span>
+          ) : null}
+        </div>
         {isLoadingWeeks ? (
           <p className={isDark ? "text-slate-300" : "text-slate-600"}>{t("loadingWeeks")}</p>
         ) : (
-          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:grid-cols-3 md:px-0 xl:grid-cols-5">
             {weeks.map((week) => {
               const isSelected = week.start_date === selectedWeekStart;
               return (
@@ -588,7 +574,7 @@ export function WeeklyPlanner() {
                   type="button"
                   key={week.start_date}
                   onClick={() => handleWeekSelect(week.start_date)}
-                  className={`min-h-20 rounded-2xl border px-4 py-3 text-start text-xs transition ${
+                  className={`min-h-16 min-w-40 rounded-xl border px-4 py-3 text-start text-xs transition md:min-w-0 ${
                     isSelected
                       ? isDark
                         ? "border-teal-500 bg-teal-500 text-slate-950 shadow-lg shadow-teal-950/40"
@@ -616,8 +602,8 @@ export function WeeklyPlanner() {
       </section>
 
       <section className={`rounded-3xl border p-4 shadow-sm ${panelClass}`}>
-        <div className="mb-4 flex flex-col items-center justify-center gap-3 text-center">
-          <div className="flex flex-col items-center">
+        <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
             <h2 className="text-xl font-semibold">
               {weekDetail
                 ? formatReadableShamsiWeekRange(
@@ -627,28 +613,42 @@ export function WeeklyPlanner() {
                   )
                 : t("weekDetails")}
             </h2>
-            <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-              {t("durationInputMinutes")}
+            <p className={`mt-1 text-sm font-medium ${saveStatusClass()}`}>
+              {saveStatusText()}
             </p>
           </div>
-          {renderSaveWeekButton()}
+          <div className="flex flex-wrap items-center gap-2">
+            {totals ? (
+              <>
+                {SECTIONS.map((section) => (
+                  <span
+                    key={section}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${sectionTheme[section].container}`}
+                  >
+                    {t(SECTION_TRANSLATION_KEYS[section])}:{" "}
+                    {formatDuration(totals.by_section_minutes[section], language)}
+                  </span>
+                ))}
+                <span className="rounded-full bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white">
+                  {t("total")}: {formatDuration(totals.week_total_minutes, language)}
+                </span>
+              </>
+            ) : null}
+            {renderSaveWeekButton("hidden md:inline-flex")}
+          </div>
         </div>
 
-        {message ? (
-          <p className={`mb-3 text-center text-sm font-medium ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
-            {message}
-          </p>
-        ) : null}
-        {error ? (
-          <p className={`mb-3 text-center text-sm font-medium ${isDark ? "text-rose-300" : "text-rose-700"}`}>
-            {error}
-          </p>
-        ) : null}
-
         {isLoadingWeek ? (
-          <p className={isDark ? "text-slate-300" : "text-slate-600"}>
-            {t("loadingSelectedWeek")}
-          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[0, 1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className={`h-24 animate-pulse rounded-2xl border ${
+                  isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-100"
+                }`}
+              />
+            ))}
+          </div>
         ) : null}
 
         {weekDetail ? (
@@ -657,114 +657,172 @@ export function WeeklyPlanner() {
               className={`mx-auto w-full max-w-[1500px] rounded-2xl border p-4 ${mutedPanelClass}`}
             >
               <h3 className="mb-3 text-base font-semibold">{t("weekGoal")}</h3>
-              <div className="grid gap-2">
-                <textarea
-                  value={weekDetail.weekly_goal}
-                  onChange={(event) => updateWeeklyGoal(event.target.value)}
-                  onKeyDown={handleTextareaEnterToSave}
-                  placeholder={t("writeMainGoalForWeek")}
-                  rows={2}
-                  className={inputClass}
-                />
-                <textarea
-                  value={weekDetail.weekly_note}
-                  onChange={(event) => updateWeeklyNote(event.target.value)}
-                  onKeyDown={handleTextareaEnterToSave}
-                  placeholder={t("writeExtraWeeklyNote")}
-                  rows={3}
-                  className={inputClass}
-                />
-                {renderSaveWeekButton("justify-self-end px-4", true)}
+              <div className="grid gap-3 lg:grid-cols-2">
+                <label className="block">
+                  {renderFieldLabel(t("weeklyGoal"))}
+                  <textarea
+                    value={weekDetail.weekly_goal}
+                    onChange={(event) => updateWeeklyGoal(event.target.value)}
+                    onKeyDown={handleTextareaEnterToSave}
+                    placeholder={t("writeMainGoalForWeek")}
+                    rows={3}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block">
+                  {renderFieldLabel(t("weeklyNote"))}
+                  <textarea
+                    value={weekDetail.weekly_note}
+                    onChange={(event) => updateWeeklyNote(event.target.value)}
+                    onKeyDown={handleTextareaEnterToSave}
+                    placeholder={t("writeExtraWeeklyNote")}
+                    rows={3}
+                    className={inputClass}
+                  />
+                </label>
               </div>
             </article>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7">
-              {weekDetail.days.map((day) => (
-                <article
-                  key={day.date}
-                  className={`rounded-2xl border p-4 ${dayTheme[day.weekday_index].container}`}
-                >
-                  <header
-                    className={`mb-3 flex items-center justify-between border-b pb-2 ${dayTheme[day.weekday_index].line}`}
+            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              {weekDetail.days.map((day) => {
+                const dayTotal = dayTotalMinutes(day);
+                const isActiveDay = day.date === activeDate;
+                const dayHasContent = dayHasDetails(day);
+                return (
+                  <article
+                    key={day.date}
+                    className={`rounded-2xl border p-4 ${
+                      isActiveDay
+                        ? isDark
+                          ? "border-teal-500 bg-slate-900 text-slate-100"
+                          : "border-teal-500 bg-white text-slate-900"
+                        : mutedPanelClass
+                    }`}
                   >
-                    <h3
-                      className={`text-base font-semibold ${dayTheme[day.weekday_index].title}`}
+                    <button
+                      type="button"
+                      onClick={() => setActiveDayDate(day.date)}
+                      className={`flex w-full items-center justify-between gap-3 border-b pb-3 text-start ${
+                        isDark ? "border-slate-700" : "border-slate-200"
+                      }`}
+                      aria-expanded={isActiveDay}
                     >
-                      {t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday")}
-                    </h3>
-                    <span
-                      className={`rounded-full px-2 py-1 text-[11px] font-semibold ${dayTheme[day.weekday_index].badge}`}
-                    >
-                      {t("day")} {formatNumber(day.weekday_index + 1, language)}
-                    </span>
-                  </header>
-                  <div className="mb-3">
-                    <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-500"}`}>
-                      {formatReadableShamsiDate(day.date, language)}
-                    </p>
-                  </div>
+                      <span>
+                        <span className="block text-base font-semibold">
+                          {t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday")}
+                        </span>
+                        <span className={`mt-1 block text-xs ${isDark ? "text-slate-300" : "text-slate-500"}`}>
+                          {formatReadableShamsiDate(day.date, language)}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="rounded-full bg-teal-600 px-3 py-1 text-xs font-semibold text-white">
+                          {formatDuration(dayTotal, language)}
+                        </span>
+                        <span className={`text-[11px] font-medium ${dayHasContent ? "text-emerald-500" : isDark ? "text-slate-400" : "text-slate-500"}`}>
+                          {dayHasContent ? t("sectionDetails") : t("noNotesYet")}
+                        </span>
+                      </span>
+                    </button>
 
-                  <div className="space-y-3">
-                    {SECTIONS.map((section) => (
-                      <div
-                        key={section}
-                        className={`rounded-xl border p-3 shadow-sm ${sectionTheme[section].container}`}
-                      >
-                        <div className="mb-2 flex items-center gap-2">
-                          <span
-                            className={`rounded-full px-2 py-1 text-[11px] font-semibold ${sectionTheme[section].badge}`}
+                    <div className={`mt-3 space-y-3 ${isActiveDay ? "block" : "hidden lg:block"}`}>
+                      {SECTIONS.map((section) => {
+                        const sectionData = day.sections[section];
+                        return (
+                          <div
+                            key={section}
+                            className={`rounded-xl border p-3 shadow-sm ${sectionTheme[section].container}`}
                           >
-                            {t(SECTION_TRANSLATION_KEYS[section])}
-                          </span>
-                        </div>
-                        <div className="grid gap-2">
-                          <input
-                            value={
-                              day.sections[section].duration_minutes
-                                ? String(day.sections[section].duration_minutes)
-                                : ""
-                            }
-                          onChange={(event) =>
-                            updateDuration(
-                              day.date,
-                              section,
-                              Number.parseInt(event.target.value || "0", 10),
-                            )
-                          }
-                          onKeyDown={handleEnterToSave}
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          placeholder={t("minutes")}
-                          className={inputClass}
-                        />
-                        <input
-                          value={day.sections[section].goal}
-                          onChange={(event) =>
-                            updateSectionGoal(day.date, section, event.target.value)
-                          }
-                          onKeyDown={handleEnterToSave}
-                          placeholder={t("goalForSection")}
-                          className={inputClass}
-                        />
-                        <input
-                          value={day.sections[section].note}
-                          onChange={(event) =>
-                            updateNote(day.date, section, event.target.value)
-                          }
-                          onKeyDown={handleEnterToSave}
-                          placeholder={t("writeShortNote")}
-                          className={inputClass}
-                        />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3">
-                    {renderSaveWeekButton("w-full", true)}
-                  </div>
-                </article>
-              ))}
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                              <span
+                                className={`rounded-full px-2 py-1 text-[11px] font-semibold ${sectionTheme[section].badge}`}
+                              >
+                                {t(SECTION_TRANSLATION_KEYS[section])}
+                              </span>
+                              <span className={`text-xs font-semibold ${sectionTheme[section].title}`}>
+                                {formatDuration(sectionData.duration_minutes, language)}
+                              </span>
+                            </div>
+                            <div className="grid gap-3">
+                              <label className="block">
+                                {renderFieldLabel(t("minutes"))}
+                                <input
+                                  value={
+                                    sectionData.duration_minutes
+                                      ? String(sectionData.duration_minutes)
+                                      : ""
+                                  }
+                                  onChange={(event) =>
+                                    updateDurationInput(day.date, section, event.target.value)
+                                  }
+                                  onKeyDown={handleEnterToSave}
+                                  type="number"
+                                  min={0}
+                                  inputMode="numeric"
+                                  placeholder={t("minutes")}
+                                  className={`${inputClass} text-base font-semibold`}
+                                />
+                              </label>
+                              <div className="grid grid-cols-4 gap-2">
+                                {[15, 30, 60].map((minutes) => (
+                                  <button
+                                    key={minutes}
+                                    type="button"
+                                    onClick={() => adjustDuration(day.date, section, minutes)}
+                                    className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                                      isDark
+                                        ? "border-slate-600 bg-slate-950/70 text-slate-100 hover:border-teal-400"
+                                        : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
+                                    }`}
+                                  >
+                                    +{formatNumber(minutes, language)}
+                                  </button>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => updateDuration(day.date, section, 0)}
+                                  className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                                    isDark
+                                      ? "border-slate-600 bg-slate-950/70 text-slate-100 hover:border-rose-400"
+                                      : "border-slate-300 bg-white text-slate-700 hover:border-rose-400"
+                                  }`}
+                                >
+                                  {formatNumber(0, language)}
+                                </button>
+                              </div>
+                              <label className="block">
+                                {renderFieldLabel(t("goal"))}
+                                <input
+                                  value={sectionData.goal}
+                                  onChange={(event) =>
+                                    updateSectionGoal(day.date, section, event.target.value)
+                                  }
+                                  onKeyDown={handleEnterToSave}
+                                  placeholder={t("goalForSection")}
+                                  className={inputClass}
+                                />
+                              </label>
+                              <label className="block">
+                                {renderFieldLabel(t("note"))}
+                                <textarea
+                                  value={sectionData.note}
+                                  onChange={(event) =>
+                                    updateNote(day.date, section, event.target.value)
+                                  }
+                                  onKeyDown={handleTextareaEnterToSave}
+                                  placeholder={t("writeShortNote")}
+                                  rows={2}
+                                  className={inputClass}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -840,7 +898,7 @@ export function WeeklyPlanner() {
       ) : null}
       {weekDetail ? (
         <div
-          className={`fixed inset-x-0 bottom-0 z-30 border-t px-4 py-3 shadow-2xl md:hidden ${
+          className={`fixed inset-x-0 bottom-0 z-30 border-t px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl md:hidden ${
             isDark
               ? "border-slate-700 bg-slate-950/95"
               : "border-slate-200 bg-white/95"
@@ -848,11 +906,9 @@ export function WeeklyPlanner() {
         >
           <div className="mx-auto flex max-w-md items-center gap-3">
             <p
-              className={`min-w-0 flex-1 text-xs font-medium ${
-                isDark ? "text-slate-200" : "text-slate-700"
-              }`}
+              className={`min-w-0 flex-1 text-xs font-medium ${saveStatusClass()}`}
             >
-              {message || error || t("durationInputMinutes")}
+              {saveStatusText()}
             </p>
             {renderSaveWeekButton("shrink-0 px-4", true)}
           </div>
