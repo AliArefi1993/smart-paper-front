@@ -79,28 +79,28 @@ const SECTION_THEME_SETUP: Record<SectionName, ThemeClasses> = {
 
 const SECTION_THEME_DARK: Record<SectionName, ThemeClasses> = {
   main: {
-    container: "border-fuchsia-800 bg-fuchsia-950/35",
-    badge: "bg-fuchsia-500/25 text-fuchsia-100",
-    title: "text-fuchsia-100",
-    line: "border-fuchsia-800/70",
+    container: "border-fuchsia-700/70 bg-slate-900/85",
+    badge: "bg-fuchsia-500 text-slate-950",
+    title: "text-fuchsia-200",
+    line: "border-fuchsia-700/60",
   },
   second: {
-    container: "border-cyan-800 bg-cyan-950/35",
-    badge: "bg-cyan-500/25 text-cyan-100",
-    title: "text-cyan-100",
-    line: "border-cyan-800/70",
+    container: "border-cyan-700/70 bg-slate-900/85",
+    badge: "bg-cyan-400 text-slate-950",
+    title: "text-cyan-200",
+    line: "border-cyan-700/60",
   },
   learning: {
-    container: "border-amber-800 bg-amber-950/35",
-    badge: "bg-amber-500/25 text-amber-100",
-    title: "text-amber-100",
-    line: "border-amber-800/70",
+    container: "border-amber-700/70 bg-slate-900/85",
+    badge: "bg-amber-400 text-slate-950",
+    title: "text-amber-200",
+    line: "border-amber-700/60",
   },
   exercise: {
-    container: "border-emerald-800 bg-emerald-950/35",
-    badge: "bg-emerald-500/25 text-emerald-100",
-    title: "text-emerald-100",
-    line: "border-emerald-800/70",
+    container: "border-emerald-700/70 bg-slate-900/85",
+    badge: "bg-emerald-400 text-slate-950",
+    title: "text-emerald-200",
+    line: "border-emerald-700/60",
   },
 };
 
@@ -151,46 +151,46 @@ const DAY_THEME_SETUP: Record<number, ThemeClasses> = {
 
 const DAY_THEME_DARK: Record<number, ThemeClasses> = {
   0: {
-    container: "border-slate-700 bg-slate-900/75",
+    container: "border-slate-600 bg-slate-900/90",
     badge: "bg-slate-700 text-slate-100",
     title: "text-slate-100",
-    line: "border-slate-700",
+    line: "border-slate-600",
   },
   1: {
-    container: "border-zinc-700 bg-zinc-900/75",
+    container: "border-zinc-600 bg-slate-900/90",
     badge: "bg-zinc-700 text-zinc-100",
     title: "text-zinc-100",
-    line: "border-zinc-700",
+    line: "border-zinc-600",
   },
   2: {
-    container: "border-blue-800 bg-blue-950/35",
-    badge: "bg-blue-500/25 text-blue-100",
-    title: "text-blue-100",
-    line: "border-blue-800/70",
+    container: "border-blue-700/70 bg-slate-900/90",
+    badge: "bg-blue-500 text-white",
+    title: "text-blue-200",
+    line: "border-blue-700/60",
   },
   3: {
-    container: "border-violet-800 bg-violet-950/35",
-    badge: "bg-violet-500/25 text-violet-100",
-    title: "text-violet-100",
-    line: "border-violet-800/70",
+    container: "border-violet-700/70 bg-slate-900/90",
+    badge: "bg-violet-500 text-white",
+    title: "text-violet-200",
+    line: "border-violet-700/60",
   },
   4: {
-    container: "border-rose-800 bg-rose-950/35",
-    badge: "bg-rose-500/25 text-rose-100",
-    title: "text-rose-100",
-    line: "border-rose-800/70",
+    container: "border-rose-700/70 bg-slate-900/90",
+    badge: "bg-rose-500 text-white",
+    title: "text-rose-200",
+    line: "border-rose-700/60",
   },
   5: {
-    container: "border-amber-800 bg-amber-950/35",
-    badge: "bg-amber-500/25 text-amber-100",
-    title: "text-amber-100",
-    line: "border-amber-800/70",
+    container: "border-amber-700/70 bg-slate-900/90",
+    badge: "bg-amber-400 text-slate-950",
+    title: "text-amber-200",
+    line: "border-amber-700/60",
   },
   6: {
-    container: "border-emerald-800 bg-emerald-950/35",
-    badge: "bg-emerald-500/25 text-emerald-100",
-    title: "text-emerald-100",
-    line: "border-emerald-800/70",
+    container: "border-emerald-700/70 bg-slate-900/90",
+    badge: "bg-emerald-400 text-slate-950",
+    title: "text-emerald-200",
+    line: "border-emerald-700/60",
   },
 };
 
@@ -239,14 +239,23 @@ export function WeeklyPlanner() {
   const dayTheme = isDark ? DAY_THEME_DARK : DAY_THEME_SETUP;
   const sectionTheme = isDark ? SECTION_THEME_DARK : SECTION_THEME_SETUP;
   const panelClass = isDark
-    ? "border-slate-700 bg-slate-900/85 text-slate-100"
-    : "border-slate-200 bg-white text-slate-900";
+    ? "border-slate-700 bg-slate-900/92 text-slate-100 shadow-slate-950/30"
+    : "border-slate-200 bg-white/95 text-slate-900 shadow-cyan-900/5";
   const mutedPanelClass = isDark
-    ? "border-slate-700 bg-slate-800/70"
-    : "border-slate-200 bg-slate-50";
+    ? "border-slate-700 bg-slate-800/78 text-slate-100"
+    : "border-slate-200 bg-slate-50 text-slate-900";
   const inputClass = isDark
-    ? "w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none ring-teal-400 placeholder:text-slate-400 focus:ring"
-    : "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none ring-teal-500 focus:ring";
+    ? "w-full min-h-10 rounded-lg border border-slate-500 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-2 ring-transparent placeholder:text-slate-400 focus:border-teal-300 focus:ring-teal-400/60"
+    : "w-full min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-2 ring-transparent placeholder:text-slate-500 focus:border-teal-600 focus:ring-teal-500/35";
+  const pageClass = isDark
+    ? "bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-100"
+    : "bg-gradient-to-b from-cyan-50 via-slate-50 to-emerald-50 text-slate-900";
+  const navigationLinkClass = isDark
+    ? "border-slate-600 bg-slate-800 text-slate-100 hover:border-teal-400 hover:bg-slate-700 hover:text-teal-200 active:bg-slate-700"
+    : "border-slate-300 bg-white text-slate-800 hover:border-teal-500 hover:text-teal-700 active:bg-slate-100";
+  const segmentShellClass = isDark
+    ? "border-slate-600 bg-slate-950/80"
+    : "border-slate-300 bg-slate-100";
 
   function formatWeekChoiceLabel(week: WeekItem): string {
     const offset = weekOffsetFromCurrent(week);
@@ -478,57 +487,43 @@ export function WeeklyPlanner() {
   return (
     <main
       dir={isPersian ? "rtl" : "ltr"}
-      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 md:px-6 xl:px-8 ${
-        isDark ? "text-slate-100" : "text-slate-900"
-      }`}
+      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 transition-colors md:px-6 xl:px-8 ${pageClass}`}
     >
       <section
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-5 shadow-sm backdrop-blur ${panelClass}`}
       >
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">{t("weeklySmartPaper")}</h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <LanguageToggle />
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <LanguageToggle tone={isDark ? "dark" : "light"} />
             <Link
               href="/summaries"
-              className={`rounded-xl border px-3 py-1 text-xs font-semibold transition ${
-                isDark
-                  ? "border-slate-600 bg-slate-800 text-slate-100 hover:border-teal-400 hover:text-teal-300"
-                  : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
-              }`}
+              className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
             >
               {t("summaries")}
             </Link>
             <Link
               href="/finance"
-              className={`rounded-xl border px-3 py-1 text-xs font-semibold transition ${
-                isDark
-                  ? "border-slate-600 bg-slate-800 text-slate-100 hover:border-teal-400 hover:text-teal-300"
-                  : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
-              }`}
+              className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
             >
               {t("finance")}
             </Link>
             <Link
               href="/export"
-              className={`rounded-xl border px-3 py-1 text-xs font-semibold transition ${
-                isDark
-                  ? "border-slate-600 bg-slate-800 text-slate-100 hover:border-teal-400 hover:text-teal-300"
-                  : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
-              }`}
+              className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
             >
               {t("export")}
             </Link>
-            <div className="flex items-center gap-2 rounded-full border border-slate-400/40 bg-white/10 p-1">
+            <div className={`col-span-2 flex min-h-10 items-center gap-1 rounded-full border p-1 sm:col-span-1 ${segmentShellClass}`}>
             <button
               type="button"
               onClick={() => setThemeMode("setup")}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                 themeMode === "setup"
-                  ? "bg-teal-600 text-white"
+                  ? "bg-teal-600 text-white shadow-sm"
                   : isDark
                     ? "text-slate-200 hover:bg-slate-700"
-                    : "text-slate-700 hover:bg-slate-200"
+                    : "text-slate-700 hover:bg-white"
               }`}
             >
               {t("focusMode")}
@@ -536,12 +531,12 @@ export function WeeklyPlanner() {
             <button
               type="button"
               onClick={() => setThemeMode("dark")}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                 themeMode === "dark"
-                  ? "bg-slate-100 text-slate-900"
+                  ? "bg-slate-100 text-slate-950 shadow-sm"
                   : isDark
                     ? "text-slate-200 hover:bg-slate-700"
-                    : "text-slate-700 hover:bg-slate-200"
+                    : "text-slate-700 hover:bg-white"
               }`}
             >
               {t("darkMode")}
@@ -631,8 +626,16 @@ export function WeeklyPlanner() {
           </button>
         </div>
 
-        {message ? <p className="mb-3 text-center text-sm text-emerald-700">{message}</p> : null}
-        {error ? <p className="mb-3 text-center text-sm text-rose-700">{error}</p> : null}
+        {message ? (
+          <p className={`mb-3 text-center text-sm font-medium ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
+            {message}
+          </p>
+        ) : null}
+        {error ? (
+          <p className={`mb-3 text-center text-sm font-medium ${isDark ? "text-rose-300" : "text-rose-700"}`}>
+            {error}
+          </p>
+        ) : null}
 
         {isLoadingWeek ? (
           <p className={isDark ? "text-slate-300" : "text-slate-600"}>

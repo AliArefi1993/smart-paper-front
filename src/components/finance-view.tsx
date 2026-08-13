@@ -275,14 +275,14 @@ export function FinanceView() {
 
   return (
     <main dir={isPersian ? "rtl" : "ltr"} className="min-h-screen bg-gradient-to-b from-emerald-950 via-slate-950 to-slate-900 px-4 py-6 text-slate-100 md:px-6 xl:px-8">
-      <section className="mx-auto flex w-full max-w-5xl items-center justify-between rounded-3xl border border-emerald-700/70 bg-emerald-900/20 p-5 shadow-lg">
+      <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-3xl border border-emerald-700/70 bg-emerald-900/20 p-5 shadow-lg sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t("finance")}</h1>
           <p className="mt-2 text-sm text-emerald-100/80">
             {t("pathToGoal")}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
           <Link
             href="/"

@@ -2,9 +2,6 @@
 
 import Link from "next/link";
 import { type ChangeEvent, useEffect, useState } from "react";
-import { Capacitor } from "@capacitor/core";
-import { Directory, Filesystem } from "@capacitor/filesystem";
-import { Share } from "@capacitor/share";
 import { LanguageToggle } from "@/components/language-toggle";
 import { formatMoney, formatNumber } from "@/lib/formatters";
 import {
@@ -36,6 +33,10 @@ async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 async function saveNativeFile(filename: string, blob: Blob) {
+  const [{ Directory, Filesystem }, { Share }] = await Promise.all([
+    import("@capacitor/filesystem"),
+    import("@capacitor/share"),
+  ]);
   const savedFile = await Filesystem.writeFile({
     path: filename,
     data: await blobToBase64(blob),
@@ -53,6 +54,7 @@ async function saveNativeFile(filename: string, blob: Blob) {
 
 async function saveFile(filename: string, mimeType: string, content: BlobPart) {
   const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
+  const { Capacitor } = await import("@capacitor/core");
 
   if (Capacitor.isNativePlatform()) {
     await saveNativeFile(filename, blob);
@@ -216,14 +218,14 @@ export function ExportView() {
 
   return (
     <main dir={isPersian ? "rtl" : "ltr"} className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 md:px-6">
-      <section className="mx-auto flex w-full max-w-4xl items-center justify-between rounded-2xl border border-slate-700 bg-slate-900 p-5">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t("exportData")}</h1>
           <p className="mt-2 text-sm text-slate-300">
             {t("saveBackupReadable")}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
           <Link
             href="/finance"

@@ -122,14 +122,14 @@ export function WeekSummariesView() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 text-slate-100 md:px-6 xl:px-8">
       <div dir={isPersian ? "rtl" : "ltr"} className="contents">
-      <section className="mx-auto flex w-full max-w-[1700px] items-center justify-between rounded-3xl border border-slate-700 bg-slate-900/85 p-5 shadow-sm">
+      <section className="mx-auto flex w-full max-w-[1700px] flex-col gap-4 rounded-3xl border border-slate-700 bg-slate-900/85 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t("summaries")}</h1>
           <p className="mt-2 text-sm text-slate-300">
             {t("summaryDescription")}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <LanguageToggle />
           <Link
             href="/finance"
