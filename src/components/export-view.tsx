@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { type ChangeEvent, useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Directory, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { LanguageToggle } from "@/components/language-toggle";
 import { formatMoney, formatNumber } from "@/lib/formatters";
 import {
@@ -18,8 +21,44 @@ function isForbidden(errorValue: unknown): boolean {
   return errorValue instanceof Response && errorValue.status === 403;
 }
 
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+}
+
+async function saveNativeFile(filename: string, blob: Blob) {
+  const savedFile = await Filesystem.writeFile({
+    path: filename,
+    data: await blobToBase64(blob),
+    directory: Directory.Cache,
+    recursive: true,
+  });
+
+  await Share.share({
+    title: filename,
+    text: filename,
+    url: savedFile.uri,
+    dialogTitle: filename,
+  });
+}
+
 async function saveFile(filename: string, mimeType: string, content: BlobPart) {
   const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
+
+  if (Capacitor.isNativePlatform()) {
+    await saveNativeFile(filename, blob);
+    return;
+  }
+
   const file = new File([blob], filename, { type: mimeType });
   const shareData = { files: [file], title: filename };
 

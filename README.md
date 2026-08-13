@@ -70,6 +70,8 @@ Available files:
 
 In the backend web app, unlock Finance before exporting. In the Android app, unlock Finance first as well; Android exports from phone storage.
 
+On Android, export buttons open the native share sheet with the generated file. Choose a file manager, Drive, chat app, or another target to save/share the file.
+
 ## Import Data
 
 Open `Export`, unlock Finance, then use `Choose JSON Backup`.
