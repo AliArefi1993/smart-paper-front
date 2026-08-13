@@ -103,6 +103,15 @@ cd android
 ./gradlew assembleDebug
 ```
 
+Android stable-signed local-data release build:
+
+```bash
+scripts/build-android-release-docker.sh
+```
+
+Release signing uses the ignored local file `android/keystore.properties`; start from
+`android/keystore.properties.example` and keep the real keystore private.
+
 ## Frontend Readability Rule
 - Keep frontend code easy for AI and humans to read.
 - Prefer simple component structure, clear names, and small focused files.

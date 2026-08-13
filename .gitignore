@@ -22,6 +22,8 @@
 # production
 /build
 *.apk
+*.jks
+android/keystore.properties
 
 # misc
 .DS_Store
