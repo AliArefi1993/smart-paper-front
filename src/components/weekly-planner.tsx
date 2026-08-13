@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import {
   formatCompactShamsiWeekRange,
@@ -140,6 +140,7 @@ export function WeeklyPlanner() {
   const [weeks, setWeeks] = useState<WeekItem[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
   const [activeDayDate, setActiveDayDate] = useState<string>("");
+  const [pendingWeekStart, setPendingWeekStart] = useState<string | null>(null);
   const [weekDetail, setWeekDetail] = useState<WeekDetail | null>(null);
   const [isLoadingWeeks, setIsLoadingWeeks] = useState(true);
   const [isLoadingWeek, setIsLoadingWeek] = useState(false);
@@ -195,8 +196,16 @@ export function WeeklyPlanner() {
     }
   }
 
-  async function saveWeek() {
-    if (!weekDetail) return;
+  function loadWeek(startDate: string): void {
+    setSelectedWeekStart(startDate);
+    setActiveDayDate("");
+    setPendingWeekStart(null);
+    setIsLoadingWeek(true);
+    void fetchWeek(startDate);
+  }
+
+  async function saveWeek(): Promise<boolean> {
+    if (!weekDetail) return false;
 
     setIsSaving(true);
     setMessage("");
@@ -206,8 +215,10 @@ export function WeeklyPlanner() {
       setWeekDetail(payload);
       setHasUnsavedChanges(false);
       setMessage(t("savedSuccessfully"));
+      return true;
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : t("saveWeek"));
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -266,6 +277,18 @@ export function WeeklyPlanner() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    function handleBeforeUnload(event: BeforeUnloadEvent): void {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   const totals = useMemo(() => {
     if (!weekDetail) return null;
@@ -410,10 +433,33 @@ export function WeeklyPlanner() {
   }
 
   function handleWeekSelect(startDate: string): void {
-    setSelectedWeekStart(startDate);
-    setActiveDayDate("");
-    setIsLoadingWeek(true);
-    void fetchWeek(startDate);
+    if (startDate === selectedWeekStart || isSaving || isLoadingWeek) return;
+    if (hasUnsavedChanges) {
+      setPendingWeekStart(startDate);
+      return;
+    }
+
+    loadWeek(startDate);
+  }
+
+  async function saveAndSwitchWeek(): Promise<void> {
+    const nextWeekStart = pendingWeekStart;
+    if (!nextWeekStart) return;
+
+    const saved = await saveWeek();
+    if (!saved) return;
+    loadWeek(nextWeekStart);
+  }
+
+  function discardAndSwitchWeek(): void {
+    const nextWeekStart = pendingWeekStart;
+    if (!nextWeekStart) return;
+    setHasUnsavedChanges(false);
+    loadWeek(nextWeekStart);
+  }
+
+  function cancelWeekSwitch(): void {
+    setPendingWeekStart(null);
   }
 
   function resolvedActiveDayDate(): string {
@@ -450,6 +496,23 @@ export function WeeklyPlanner() {
     if (error) return isDark ? "text-rose-300" : "text-rose-700";
     if (hasUnsavedChanges) return isDark ? "text-amber-200" : "text-amber-700";
     return isDark ? "text-emerald-300" : "text-emerald-700";
+  }
+
+  async function saveAndGoToNextDay(): Promise<void> {
+    if (!weekDetail) return;
+
+    const saved = await saveWeek();
+    if (!saved) return;
+
+    const currentIndex = weekDetail.days.findIndex((day) => day.date === activeDate);
+    const nextDay = weekDetail.days[Math.min(currentIndex + 1, weekDetail.days.length - 1)];
+    if (nextDay) setActiveDayDate(nextDay.date);
+  }
+
+  function handlePlannerNavigation(event: MouseEvent<HTMLAnchorElement>): void {
+    if (!hasUnsavedChanges) return;
+    if (window.confirm(t("leaveWithUnsavedChanges"))) return;
+    event.preventDefault();
   }
 
   function renderSaveWeekButton(className = "", compact = false) {
@@ -492,18 +555,21 @@ export function WeeklyPlanner() {
             <LanguageToggle tone={isDark ? "dark" : "light"} />
             <Link
               href="/summaries"
+              onClick={handlePlannerNavigation}
               className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
             >
               {t("summaries")}
             </Link>
             <Link
               href="/finance"
+              onClick={handlePlannerNavigation}
               className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
             >
               {t("finance")}
             </Link>
             <Link
               href="/export"
+              onClick={handlePlannerNavigation}
               className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
             >
               {t("export")}
@@ -684,6 +750,50 @@ export function WeeklyPlanner() {
             </article>
 
             <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              <div
+                className={`-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden ${
+                  isPersian ? "flex-row-reverse" : ""
+                }`}
+              >
+                {weekDetail.days.map((day) => {
+                  const isActiveDay = day.date === activeDate;
+                  const dayHasContent = dayHasDetails(day);
+                  return (
+                    <button
+                      key={`mobile-day-${day.date}`}
+                      type="button"
+                      onClick={() => setActiveDayDate(day.date)}
+                      className={`min-w-28 rounded-xl border px-3 py-2 text-start transition ${
+                        isActiveDay
+                          ? isDark
+                            ? "border-teal-400 bg-teal-500 text-slate-950"
+                            : "border-teal-600 bg-teal-600 text-white"
+                          : isDark
+                            ? "border-slate-700 bg-slate-900 text-slate-200"
+                            : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">
+                        {t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday")}
+                      </span>
+                      <span className="mt-1 block text-[11px] opacity-80">
+                        {formatDuration(dayTotalMinutes(day), language)}
+                      </span>
+                      <span
+                        className={`mt-1 block h-1.5 w-1.5 rounded-full ${
+                          dayHasContent
+                            ? isActiveDay
+                              ? "bg-white"
+                              : "bg-emerald-500"
+                            : isDark
+                              ? "bg-slate-600"
+                              : "bg-slate-300"
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
               {weekDetail.days.map((day) => {
                 const dayTotal = dayTotalMinutes(day);
                 const isActiveDay = day.date === activeDate;
@@ -904,13 +1014,71 @@ export function WeeklyPlanner() {
               : "border-slate-200 bg-white/95"
           }`}
         >
-          <div className="mx-auto flex max-w-md items-center gap-3">
+          <div className="mx-auto grid max-w-md gap-2">
             <p
-              className={`min-w-0 flex-1 text-xs font-medium ${saveStatusClass()}`}
+              className={`min-w-0 text-xs font-medium ${saveStatusClass()}`}
             >
               {saveStatusText()}
             </p>
-            {renderSaveWeekButton("shrink-0 px-4", true)}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void saveAndGoToNextDay()}
+                disabled={!weekDetail || isSaving}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  isDark
+                    ? "border-slate-600 bg-slate-900 text-slate-100 hover:border-teal-400"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
+                }`}
+              >
+                {t("saveAndNextDay")}
+              </button>
+              {renderSaveWeekButton("w-full px-4", true)}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {pendingWeekStart ? (
+        <div className="fixed inset-0 z-40 flex items-end bg-slate-950/60 px-4 py-4 sm:items-center sm:justify-center">
+          <div className={`w-full max-w-md rounded-2xl border p-4 shadow-2xl ${panelClass}`}>
+            <h2 className="text-lg font-semibold">{t("unsavedWeekTitle")}</h2>
+            <p className={`mt-2 text-sm leading-6 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+              {t("unsavedWeekDescription")}
+            </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => void saveAndSwitchWeek()}
+                disabled={isSaving}
+                className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {isSaving ? t("saving") : t("saveAndSwitch")}
+              </button>
+              <button
+                type="button"
+                onClick={discardAndSwitchWeek}
+                disabled={isSaving}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  isDark
+                    ? "border-rose-500/70 bg-slate-900 text-rose-200 hover:bg-rose-950/40"
+                    : "border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
+                }`}
+              >
+                {t("discardChanges")}
+              </button>
+              <button
+                type="button"
+                onClick={cancelWeekSwitch}
+                disabled={isSaving}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  isDark
+                    ? "border-slate-600 bg-slate-900 text-slate-100 hover:border-teal-400"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
+                }`}
+              >
+                {t("keepEditing")}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
