@@ -10,18 +10,10 @@ import {
   formatReadableShamsiWeekRange,
 } from "@/lib/formatters";
 import type { TranslationKey } from "@/lib/i18n";
+import { activePlannerSections, normalizeWeekSummary } from "@/lib/planner-sections";
 import { getWeekSummaries } from "@/lib/planner-store";
 import { useLanguage } from "@/lib/use-language";
-import type { SectionName, WeekSummary } from "@/lib/smart-paper-types";
-
-const SECTIONS: SectionName[] = ["main", "second", "learning", "exercise"];
-
-const SECTION_TRANSLATION_KEYS: Record<SectionName, TranslationKey> = {
-  main: "main",
-  second: "second",
-  learning: "learning",
-  exercise: "exercise",
-};
+import type { WeekSummary } from "@/lib/smart-paper-types";
 const WEEKDAY_TRANSLATION_KEYS: Record<string, TranslationKey> = {
   Saturday: "saturday",
   Sunday: "sunday",
@@ -34,42 +26,19 @@ const WEEKDAY_TRANSLATION_KEYS: Record<string, TranslationKey> = {
 const MONTH_OPTIONS = [1, 3, 6, 12];
 const DEFAULT_SUMMARY_MONTHS = 6;
 
-function toSafeNumber(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-}
-
 function weeksForMonths(months: number): number {
   return Math.ceil((months * 31) / 7);
 }
 
-function normalizeWeekSummary(week: WeekSummary): WeekSummary {
-  const bySection = Object.fromEntries(
-    SECTIONS.map((section) => [
-      section,
-      toSafeNumber(week.totals?.by_section_minutes?.[section]),
-    ]),
-  ) as Record<SectionName, number>;
-
-  return {
-    ...week,
-    totals: {
-      by_section_minutes: bySection,
-      week_total_minutes: toSafeNumber(week.totals?.week_total_minutes),
-    },
-    details_by_section: Object.fromEntries(
-      SECTIONS.map((section) => [section, week.details_by_section?.[section] ?? []]),
-    ) as WeekSummary["details_by_section"],
-  };
-}
-
 function hasSummaryContent(week: WeekSummary): boolean {
+  const activeSections = activePlannerSections(week.planner_sections);
   if (week.is_current || week.weekly_goal || week.weekly_note) {
     return true;
   }
   if (week.totals.week_total_minutes > 0) {
     return true;
   }
-  return SECTIONS.some((section) => (week.details_by_section?.[section] ?? []).length > 0);
+  return activeSections.some((section) => (week.details_by_section?.[section.id] ?? []).length > 0);
 }
 
 export function WeekSummariesView() {
@@ -210,13 +179,13 @@ export function WeekSummariesView() {
             </p>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {SECTIONS.map((section) => (
-                <div key={section} className="rounded-xl border border-slate-700 bg-slate-800/70 p-3">
+              {activePlannerSections(week.planner_sections).map((section) => (
+                <div key={section.id} className="rounded-xl border border-slate-700 bg-slate-800/70 p-3">
                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                    {t(SECTION_TRANSLATION_KEYS[section])}
+                    {section.label}
                   </p>
                   <p className="mt-1 text-base font-semibold text-slate-100">
-                    {formatDuration(week.totals.by_section_minutes[section], language)}
+                    {formatDuration(week.totals.by_section_minutes[section.id], language)}
                   </p>
                 </div>
               ))}
@@ -229,20 +198,20 @@ export function WeekSummariesView() {
               </p>
             </div>
 
-            {SECTIONS.some((section) => (week.details_by_section?.[section] ?? []).length > 0) ? (
+            {activePlannerSections(week.planner_sections).some((section) => (week.details_by_section?.[section.id] ?? []).length > 0) ? (
               <div className="mt-4 space-y-3">
-                {SECTIONS.map((section) => {
-                  const details = week.details_by_section?.[section] ?? [];
+                {activePlannerSections(week.planner_sections).map((section) => {
+                  const details = week.details_by_section?.[section.id] ?? [];
                   if (details.length === 0) return null;
                   return (
-                    <div key={section} className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+                    <div key={section.id} className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
                       <p className="text-xs font-semibold uppercase text-slate-400">
-                        {t(SECTION_TRANSLATION_KEYS[section])} {t("sectionDetails")}
+                        {section.label} {t("sectionDetails")}
                       </p>
                       <div className="mt-2 space-y-2">
                         {details.map((detail) => (
                           <div
-                            key={`${detail.date}-${section}`}
+                            key={`${detail.date}-${section.id}`}
                             className="border-t border-slate-800 pt-2 first:border-t-0 first:pt-0"
                           >
                             <p className="text-xs font-semibold text-slate-200">

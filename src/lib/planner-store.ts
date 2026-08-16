@@ -1,12 +1,22 @@
 import { requestJson } from "@/lib/api-client";
 import {
+  getLocalPlannerSections,
   getLocalWeek,
   getLocalWeekSummaries,
   getLocalWeeks,
+  saveLocalPlannerSections,
   saveLocalWeek,
 } from "@/lib/local-store";
+import {
+  normalizePlannerSections,
+  normalizeWeekDetail,
+  normalizeWeekSummary,
+  toPlannerSectionPayload,
+} from "@/lib/planner-sections";
 import type {
   DayData,
+  PlannerSection,
+  PlannerSectionsResponse,
   WeekDetail,
   WeekListPayload,
   WeekSummariesResponse,
@@ -27,7 +37,7 @@ export async function getWeek(startDate: string): Promise<WeekDetail> {
   if (isLocalStorageMode()) {
     return getLocalWeek(startDate);
   }
-  return requestJson<WeekDetail>(`/weeks/${startDate}/`);
+  return normalizeWeekDetail(await requestJson<WeekDetail>(`/weeks/${startDate}/`));
 }
 
 export async function saveWeek(
@@ -38,7 +48,7 @@ export async function saveWeek(
   if (isLocalStorageMode()) {
     return saveLocalWeek(week);
   }
-  return requestJson<WeekDetail>(`/weeks/${week.start_date}/`, {
+  return normalizeWeekDetail(await requestJson<WeekDetail>(`/weeks/${week.start_date}/`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -51,7 +61,7 @@ export async function saveWeek(
         sections: day.sections,
       })),
     }),
-  });
+  }));
 }
 
 export async function getWeekSummaries(
@@ -60,5 +70,35 @@ export async function getWeekSummaries(
   if (isLocalStorageMode()) {
     return getLocalWeekSummaries(span);
   }
-  return requestJson<WeekSummariesResponse>(`/week-summaries/?span=${span}`);
+  const payload = await requestJson<WeekSummariesResponse>(`/week-summaries/?span=${span}`);
+  return {
+    summaries: (payload.summaries ?? []).map(normalizeWeekSummary),
+  };
+}
+
+export async function getPlannerSections(): Promise<PlannerSection[]> {
+  if (isLocalStorageMode()) {
+    return getLocalPlannerSections();
+  }
+  return normalizePlannerSections(
+    (await requestJson<PlannerSectionsResponse>("/planner-sections/")).planner_sections,
+  );
+}
+
+export async function savePlannerSections(
+  sections: PlannerSection[],
+): Promise<PlannerSection[]> {
+  const normalized = normalizePlannerSections(sections);
+  if (isLocalStorageMode()) {
+    return saveLocalPlannerSections(normalized);
+  }
+  return normalizePlannerSections(
+    (await requestJson<PlannerSectionsResponse>("/planner-sections/", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ planner_sections: toPlannerSectionPayload(normalized) }),
+    })).planner_sections,
+  );
 }

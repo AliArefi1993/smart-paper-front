@@ -12,8 +12,14 @@ import type {
   WeekSummariesResponse,
   WeekTotals,
 } from "@/lib/smart-paper-types";
+import {
+  SECTION_IDS,
+  calculateSectionTotals,
+  emptySectionData,
+  normalizePlannerSections,
+  normalizeWeekDetail,
+} from "@/lib/planner-sections";
 
-const SECTIONS: SectionName[] = ["main", "second", "learning", "exercise"];
 const WEEKDAY_NAMES = [
   "Saturday",
   "Sunday",
@@ -24,6 +30,7 @@ const WEEKDAY_NAMES = [
   "Friday",
 ];
 const WEEKS_KEY = "smart-paper.local.weeks";
+const PLANNER_SECTIONS_KEY = "smart-paper.local.planner-sections";
 const FINANCE_KEY = "smart-paper.local.finance";
 const FINANCE_UNLOCK_KEY = "smart-paper.local.finance-unlocked-until";
 const FINANCE_UNLOCK_TTL_SECONDS = 3600;
@@ -85,14 +92,6 @@ function writeJson<T>(key: string, value: T): void {
   requireBrowserStorage().setItem(key, JSON.stringify(value));
 }
 
-function emptySection() {
-  return {
-    duration_minutes: 0,
-    goal: "",
-    note: "",
-  };
-}
-
 function createWeek(startDate: string): WeekDetail {
   const start = parseIsoDate(startDate);
   const days: DayData[] = WEEKDAY_NAMES.map((weekdayName, index) => {
@@ -101,12 +100,9 @@ function createWeek(startDate: string): WeekDetail {
       date,
       weekday_index: index,
       weekday_name: weekdayName,
-      sections: {
-        main: emptySection(),
-        second: emptySection(),
-        learning: emptySection(),
-        exercise: emptySection(),
-      },
+      sections: Object.fromEntries(
+        SECTION_IDS.map((sectionId) => [sectionId, emptySectionData()]),
+      ) as Record<SectionName, ReturnType<typeof emptySectionData>>,
     };
   });
   const endDate = formatIsoDate(addDays(start, 6));
@@ -116,21 +112,35 @@ function createWeek(startDate: string): WeekDetail {
     label: `${startDate} to ${endDate}`,
     weekly_goal: "",
     weekly_note: "",
+    planner_sections: getStoredPlannerSections(),
     days,
     totals: calculateTotals(days),
   };
 }
 
 function getStoredWeeks(): StoredWeeks {
-  return readJson<StoredWeeks>(WEEKS_KEY, {});
+  const weeks = readJson<StoredWeeks>(WEEKS_KEY, {});
+  let changed = false;
+  const normalized = Object.fromEntries(
+    Object.entries(weeks).map(([startDate, week]) => {
+      const nextWeek = normalizeWeekDetail({
+        ...week,
+        planner_sections: week.planner_sections ?? getStoredPlannerSections(),
+      });
+      if (JSON.stringify(nextWeek) !== JSON.stringify(week)) changed = true;
+      return [startDate, nextWeek];
+    }),
+  ) as StoredWeeks;
+  if (changed) writeJson(WEEKS_KEY, normalized);
+  return normalized;
 }
 
 function saveStoredWeek(week: WeekDetail): WeekDetail {
   const weeks = getStoredWeeks();
-  const normalized = {
+  const normalized = normalizeWeekDetail({
     ...week,
-    totals: calculateTotals(week.days),
-  };
+    planner_sections: getStoredPlannerSections(),
+  });
   writeJson(WEEKS_KEY, {
     ...weeks,
     [week.start_date]: normalized,
@@ -141,6 +151,7 @@ function saveStoredWeek(week: WeekDetail): WeekDetail {
 function clearStoredData(): void {
   const storage = requireBrowserStorage();
   storage.removeItem(WEEKS_KEY);
+  storage.removeItem(PLANNER_SECTIONS_KEY);
   storage.removeItem(FINANCE_KEY);
 }
 
@@ -176,7 +187,7 @@ export async function getLocalWeeks(span = 8): Promise<WeekListPayload> {
 }
 
 export async function getLocalWeek(startDate: string): Promise<WeekDetail> {
-  return getOrCreateWeek(startDate);
+  return normalizeWeekDetail(getOrCreateWeek(startDate));
 }
 
 export async function saveLocalWeek(
@@ -204,6 +215,7 @@ export async function getLocalWeekSummaries(
       end_date: week.end_date,
       weekly_goal: week.weekly_goal,
       weekly_note: week.weekly_note,
+      planner_sections: getStoredPlannerSections(),
       totals: week.totals,
       notes_by_section: collectNotesBySection(week.days),
       details_by_section: collectDetailsBySection(week.days),
@@ -214,15 +226,16 @@ export async function getLocalWeekSummaries(
 }
 
 function collectNotesBySection(days: DayData[]): Record<SectionName, string[]> {
-  const notes = {
-    main: [],
-    second: [],
-    learning: [],
-    exercise: [],
-  } as Record<SectionName, string[]>;
+  const notes = SECTION_IDS.reduce(
+    (acc, section) => ({
+      ...acc,
+      [section]: [],
+    }),
+    {} as Record<SectionName, string[]>,
+  );
 
   for (const day of days) {
-    for (const section of SECTIONS) {
+    for (const section of SECTION_IDS) {
       const note = day.sections[section].note.trim();
       if (note) notes[section].push(note);
     }
@@ -231,15 +244,16 @@ function collectNotesBySection(days: DayData[]): Record<SectionName, string[]> {
 }
 
 function collectDetailsBySection(days: DayData[]): WeekSummary["details_by_section"] {
-  const details = {
-    main: [],
-    second: [],
-    learning: [],
-    exercise: [],
-  } as NonNullable<WeekSummary["details_by_section"]>;
+  const details = SECTION_IDS.reduce(
+    (acc, section) => ({
+      ...acc,
+      [section]: [],
+    }),
+    {} as NonNullable<WeekSummary["details_by_section"]>,
+  );
 
   for (const day of days) {
-    for (const section of SECTIONS) {
+    for (const section of SECTION_IDS) {
       const sectionData = day.sections[section];
       if (
         sectionData.duration_minutes === 0 &&
@@ -262,23 +276,45 @@ function collectDetailsBySection(days: DayData[]): WeekSummary["details_by_secti
 }
 
 function calculateTotals(days: DayData[]): WeekTotals {
-  const bySection = {
-    main: 0,
-    second: 0,
-    learning: 0,
-    exercise: 0,
-  };
+  return calculateSectionTotals(
+    days,
+    getStoredPlannerSections()
+      .filter((section) => section.active)
+      .map((section) => section.id),
+  );
+}
 
-  for (const day of days) {
-    for (const section of SECTIONS) {
-      bySection[section] += day.sections[section].duration_minutes;
-    }
-  }
+function getStoredPlannerSections() {
+  const sections = normalizePlannerSections(readJson(PLANNER_SECTIONS_KEY, null));
+  writeJson(PLANNER_SECTIONS_KEY, sections);
+  return sections;
+}
 
-  return {
-    by_section_minutes: bySection,
-    week_total_minutes: Object.values(bySection).reduce((total, value) => total + value, 0),
-  };
+export async function getLocalPlannerSections() {
+  return getStoredPlannerSections();
+}
+
+export async function saveLocalPlannerSections(sections: unknown) {
+  const normalized = normalizePlannerSections(sections);
+  writeJson(PLANNER_SECTIONS_KEY, normalized);
+
+  const weeks = getStoredWeeks();
+  const nextWeeks = Object.fromEntries(
+    Object.entries(weeks).map(([startDate, week]) => [
+      startDate,
+      {
+        ...week,
+        planner_sections: normalized,
+        totals: calculateSectionTotals(
+          week.days,
+          normalized.filter((section) => section.active).map((section) => section.id),
+        ),
+      },
+    ]),
+  ) as StoredWeeks;
+  writeJson(WEEKS_KEY, nextWeeks);
+
+  return normalized;
 }
 
 function getStoredFinance(): StoredFinance {
@@ -411,11 +447,14 @@ export async function editLocalIncome(
 
 export async function getLocalExportPayload(): Promise<ExportPayload> {
   assertFinanceUnlocked();
+  const plannerSections = getStoredPlannerSections();
   const weeks = Object.values(getStoredWeeks()).sort((a, b) =>
     a.start_date < b.start_date ? -1 : 1,
   );
   return {
+    schema_version: 2,
     exported_at: new Date().toISOString(),
+    planner_sections: plannerSections,
     weeks,
     finance: formatFinance(getStoredFinance()),
   };
@@ -432,6 +471,10 @@ export async function importLocalExportPayload(
 
   if (mode === "replace") {
     clearStoredData();
+  }
+
+  if (Array.isArray(payload.planner_sections)) {
+    await saveLocalPlannerSections(payload.planner_sections);
   }
 
   let weeksImported = 0;

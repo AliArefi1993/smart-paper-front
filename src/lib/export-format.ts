@@ -1,7 +1,6 @@
-import type { ExportPayload, SectionName } from "@/lib/smart-paper-types";
+import { activePlannerSections } from "@/lib/planner-sections";
+import type { ExportPayload } from "@/lib/smart-paper-types";
 import * as XLSX from "xlsx";
-
-const SECTIONS: SectionName[] = ["main", "second", "learning", "exercise"];
 
 const CSV_COLUMNS = [
   "record_type",
@@ -10,6 +9,7 @@ const CSV_COLUMNS = [
   "date",
   "weekday",
   "section",
+  "section_label",
   "duration_minutes",
   "goal",
   "note",
@@ -46,9 +46,11 @@ export function formatExportCsv(payload: ExportPayload): string {
       }),
     );
 
+    const sections = activePlannerSections(week.planner_sections);
     for (const day of week.days) {
-      for (const section of SECTIONS) {
-        const sectionData = day.sections[section];
+      for (const section of sections) {
+        const sectionData = day.sections[section.id];
+        if (!sectionData) continue;
         rows.push(
           csvRow({
             record_type: "day_section",
@@ -56,7 +58,8 @@ export function formatExportCsv(payload: ExportPayload): string {
             week_end: week.end_date,
             date: day.date,
             weekday: day.weekday_name,
-            section,
+            section: section.id,
+            section_label: section.label,
             duration_minutes: sectionData.duration_minutes,
             goal: sectionData.goal,
             note: sectionData.note,
@@ -131,10 +134,12 @@ export function formatExportMarkdown(payload: ExportPayload): string {
       "",
     );
 
+    const sections = activePlannerSections(week.planner_sections);
     for (const day of week.days) {
       const dayLines: string[] = [];
-      for (const section of SECTIONS) {
-        const sectionData = day.sections[section];
+      for (const section of sections) {
+        const sectionData = day.sections[section.id];
+        if (!sectionData) continue;
         if (
           sectionData.duration_minutes === 0 &&
           !sectionData.goal &&
@@ -143,7 +148,7 @@ export function formatExportMarkdown(payload: ExportPayload): string {
           continue;
         }
         dayLines.push(
-          `  - ${section}: ${sectionData.duration_minutes} min; goal: ${
+          `  - ${section.label}: ${sectionData.duration_minutes} min; goal: ${
             sectionData.goal || "none"
           }; note: ${sectionData.note || "none"}`,
         );
@@ -176,10 +181,8 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
       "Week end",
       "Weekly goal",
       "Weekly note",
-      "Main minutes",
-      "Second minutes",
-      "Learning minutes",
-      "Exercise minutes",
+      "Section",
+      "Section minutes",
       "Total minutes",
     ],
   ];
@@ -196,26 +199,28 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
   ];
 
   for (const week of payload.weeks) {
-    weekRows.push([
-      week.start_date,
-      week.end_date,
-      week.weekly_goal,
-      week.weekly_note,
-      week.totals.by_section_minutes.main,
-      week.totals.by_section_minutes.second,
-      week.totals.by_section_minutes.learning,
-      week.totals.by_section_minutes.exercise,
-      week.totals.week_total_minutes,
-    ]);
+    const sections = activePlannerSections(week.planner_sections);
+    for (const section of sections) {
+      weekRows.push([
+        week.start_date,
+        week.end_date,
+        week.weekly_goal,
+        week.weekly_note,
+        section.label,
+        week.totals.by_section_minutes[section.id] ?? 0,
+        week.totals.week_total_minutes,
+      ]);
+    }
 
     for (const day of week.days) {
-      for (const section of SECTIONS) {
-        const sectionData = day.sections[section];
+      for (const section of sections) {
+        const sectionData = day.sections[section.id];
+        if (!sectionData) continue;
         dayRows.push([
           week.start_date,
           day.date,
           day.weekday_name,
-          section,
+          section.label,
           sectionData.duration_minutes,
           sectionData.goal,
           sectionData.note,

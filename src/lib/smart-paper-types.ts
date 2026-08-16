@@ -1,4 +1,27 @@
-export type SectionName = "main" | "second" | "learning" | "exercise";
+export type LegacySectionName = "main" | "second" | "learning" | "exercise";
+
+export type SectionName =
+  | "slot_1"
+  | "slot_2"
+  | "slot_3"
+  | "slot_4"
+  | "slot_5"
+  | "slot_6"
+  | "slot_7"
+  | "slot_8"
+  | "slot_9"
+  | "slot_10";
+
+export type PlannerSection = {
+  id: SectionName;
+  label: string;
+  active: boolean;
+  order: number;
+};
+
+export type PlannerSectionsResponse = {
+  planner_sections: PlannerSection[];
+};
 
 export type SectionData = {
   duration_minutes: number;
@@ -24,6 +47,7 @@ export type WeekDetail = {
   label: string;
   weekly_goal: string;
   weekly_note: string;
+  planner_sections: PlannerSection[];
   days: DayData[];
   totals: WeekTotals;
 };
@@ -45,6 +69,7 @@ export type WeekSummary = {
   end_date: string;
   weekly_goal: string;
   weekly_note: string;
+  planner_sections: PlannerSection[];
   totals: WeekTotals;
   notes_by_section: Record<SectionName, string[]>;
   details_by_section?: Record<
@@ -81,7 +106,9 @@ export type FinancePayload = {
 };
 
 export type ExportPayload = {
+  schema_version?: number;
   exported_at: string;
+  planner_sections?: PlannerSection[];
   weeks: WeekDetail[];
   finance: FinancePayload;
 };

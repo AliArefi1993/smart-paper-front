@@ -27,11 +27,13 @@ cd smart-paper-front
   - `/`: `WeeklyPlanner`
   - `/finance`: `FinanceView`
   - `/export`: `ExportView`
+  - `/settings`: `SettingsView`
   - `/summaries`: `WeekSummariesView`
 - `src/components/`: client components for product screens and language toggle.
 - `src/lib/api-client.ts`: backend API base resolution and fetch helpers.
-- `src/lib/*-store.ts`: planner, finance, export/import adapters.
+- `src/lib/*-store.ts`: planner, planner section settings, finance, export/import adapters.
 - `src/lib/local-store.ts`: browser localStorage implementation used by `NEXT_PUBLIC_DATA_MODE=local`.
+- `src/lib/planner-sections.ts`: normalizes configurable section slots and maps legacy section keys to `slot_1` through `slot_10`.
 - `src/lib/smart-paper-types.ts`: frontend API/data types.
 - `src/lib/i18n.ts` and `src/lib/use-language.ts`: English/Persian translations and language state.
 
@@ -61,6 +63,14 @@ Install:
 ```bash
 npm install
 ```
+
+Preferred validation environment:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app node:24-bookworm bash -lc 'npm ci && npm run lint && npx tsc --noEmit && npm run build'
+```
+
+Use Docker for frontend dependency installation and validation unless the user explicitly asks to use the host Node environment. Do not run host `npm install` by default.
 
 Run development server:
 
