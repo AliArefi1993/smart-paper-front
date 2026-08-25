@@ -18,11 +18,13 @@ import {
   getWeeks,
   saveWeek as saveWeekData,
 } from "@/lib/planner-store";
+import { syncMorningPlanNotification } from "@/lib/notifications";
 import type { TranslationKey } from "@/lib/i18n";
 import { useLanguage } from "@/lib/use-language";
 import type {
   DayData,
   PlannerSection,
+  ScheduleEntry,
   SectionName,
   WeekDetail,
   WeekItem,
@@ -190,9 +192,26 @@ type OrderedNoteItem = {
   note: string;
 };
 
+type ScheduleDraft = {
+  dayDate: string;
+  id?: string;
+  start_time: string;
+  end_time: string;
+  title: string;
+  note: string;
+  section_id: SectionName | "";
+};
+
 function parseIsoDate(isoDate: string): Date {
   const [year, month, day] = isoDate.split("-").map(Number);
   return new Date(year, month - 1, day);
+}
+
+function createScheduleEntryId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `schedule-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function weekOffsetFromCurrent(week: WeekItem): number {
@@ -219,6 +238,8 @@ export function WeeklyPlanner() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft | null>(null);
+  const [scheduleError, setScheduleError] = useState("");
   const isDark = themeMode === "dark";
   const sectionTheme = isDark ? SECTION_THEME_DARK : SECTION_THEME_SETUP;
   const activeSections = useMemo(
@@ -262,6 +283,10 @@ export function WeeklyPlanner() {
       const payload = await getWeek(startDate);
       setPlannerSections(payload.planner_sections);
       setWeekDetail(payload);
+      void syncMorningPlanNotification(payload, {
+        title: t("todayPlan"),
+        fallbackBody: t("notificationDescription"),
+      });
       setHasUnsavedChanges(false);
     } catch (loadError) {
       setError(
@@ -289,6 +314,10 @@ export function WeeklyPlanner() {
     try {
       const payload = await saveWeekData(weekDetail);
       setWeekDetail(payload);
+      void syncMorningPlanNotification(payload, {
+        title: t("todayPlan"),
+        fallbackBody: t("notificationDescription"),
+      });
       setHasUnsavedChanges(false);
       setMessage(t("savedSuccessfully"));
       return true;
@@ -339,6 +368,10 @@ export function WeeklyPlanner() {
         if (cancelled) return;
 
         setWeekDetail(weekPayload);
+        void syncMorningPlanNotification(weekPayload, {
+          title: t("todayPlan"),
+          fallbackBody: t("notificationDescription"),
+        });
         setHasUnsavedChanges(false);
       } catch (loadError) {
         if (cancelled) return;
@@ -356,7 +389,7 @@ export function WeeklyPlanner() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -513,6 +546,109 @@ export function WeeklyPlanner() {
     });
   }
 
+  function openNewScheduleEntry(day: DayData): void {
+    setScheduleError("");
+    setActiveDayDate(day.date);
+    setScheduleDraft({
+      dayDate: day.date,
+      start_time: "08:00",
+      end_time: "09:00",
+      title: "",
+      note: "",
+      section_id: "",
+    });
+  }
+
+  function openEditScheduleEntry(dayDate: string, entry: ScheduleEntry): void {
+    setScheduleError("");
+    setActiveDayDate(dayDate);
+    setScheduleDraft({
+      dayDate,
+      id: entry.id,
+      start_time: entry.start_time,
+      end_time: entry.end_time,
+      title: entry.title,
+      note: entry.note,
+      section_id: entry.section_id ?? "",
+    });
+  }
+
+  function closeScheduleDraft(): void {
+    setScheduleDraft(null);
+    setScheduleError("");
+  }
+
+  function saveScheduleDraft(): void {
+    if (!scheduleDraft) return;
+    const title = scheduleDraft.title.trim();
+    if (!title) {
+      setScheduleError(t("scheduleTitleRequired"));
+      return;
+    }
+    if (scheduleDraft.start_time >= scheduleDraft.end_time) {
+      setScheduleError(t("scheduleTimeInvalid"));
+      return;
+    }
+
+    const nextEntry: ScheduleEntry = {
+      id: scheduleDraft.id ?? createScheduleEntryId(),
+      start_time: scheduleDraft.start_time,
+      end_time: scheduleDraft.end_time,
+      title,
+      note: scheduleDraft.note.trim(),
+      section_id: scheduleDraft.section_id || null,
+      order: 0,
+    };
+
+    setHasUnsavedChanges(true);
+    setWeekDetail((previous) => {
+      if (!previous) return previous;
+      return {
+        ...previous,
+        days: previous.days.map((day) => {
+          if (day.date !== scheduleDraft.dayDate) return day;
+          const scheduleEntries = [
+            ...day.schedule_entries.filter((entry) => entry.id !== nextEntry.id),
+            nextEntry,
+          ]
+            .sort((a, b) =>
+              a.start_time.localeCompare(b.start_time) ||
+              a.end_time.localeCompare(b.end_time) ||
+              a.title.localeCompare(b.title),
+            )
+            .map((entry, index) => ({ ...entry, order: index }));
+          return {
+            ...day,
+            schedule_entries: scheduleEntries,
+          };
+        }),
+      };
+    });
+    closeScheduleDraft();
+  }
+
+  function deleteScheduleEntry(): void {
+    if (!scheduleDraft?.id) return;
+    setHasUnsavedChanges(true);
+    setWeekDetail((previous) => {
+      if (!previous) return previous;
+      return {
+        ...previous,
+        days: previous.days.map((day) =>
+          day.date === scheduleDraft.dayDate
+            ? {
+                ...day,
+                schedule_entries: day.schedule_entries.filter(
+                  (entry) => entry.id !== scheduleDraft.id,
+                ),
+              }
+            : day,
+        ),
+      };
+    });
+    closeScheduleDraft();
+  }
+
   function handleWeekSelect(startDate: string): void {
     if (startDate === selectedWeekStart || isSaving || isLoadingWeek) return;
     if (hasUnsavedChanges) {
@@ -560,7 +696,7 @@ export function WeeklyPlanner() {
   }
 
   function dayHasDetails(day: DayData): boolean {
-    return activeSections.some((section) => {
+    return day.schedule_entries.length > 0 || activeSections.some((section) => {
       const data = day.sections[section.id];
       return Boolean(data.duration_minutes || data.goal.trim() || data.note.trim());
     });
@@ -924,6 +1060,76 @@ export function WeeklyPlanner() {
                     </button>
 
                     <div className={`mt-3 space-y-3 ${isActiveDay ? "block" : "hidden lg:block"}`}>
+                      <div
+                        className={`rounded-xl border p-3 ${
+                          isDark
+                            ? "border-slate-700 bg-slate-950/70"
+                            : "border-slate-200 bg-slate-50"
+                        }`}
+                      >
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <h4 className="text-sm font-semibold">{t("daySchedule")}</h4>
+                          <button
+                            type="button"
+                            onClick={() => openNewScheduleEntry(day)}
+                            className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-700"
+                          >
+                            + {t("addScheduleEntry")}
+                          </button>
+                        </div>
+                        {day.schedule_entries.length === 0 ? (
+                          <p
+                            className={`rounded-lg border px-3 py-2 text-sm ${
+                              isDark
+                                ? "border-slate-700 text-slate-300"
+                                : "border-slate-200 text-slate-600"
+                            }`}
+                          >
+                            {t("noScheduleEntries")}
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {day.schedule_entries.map((entry) => {
+                              const linkedSection = activeSections.find(
+                                (section) => section.id === entry.section_id,
+                              );
+                              return (
+                                <button
+                                  key={entry.id}
+                                  type="button"
+                                  onClick={() => openEditScheduleEntry(day.date, entry)}
+                                  className={`grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border px-3 py-2 text-start transition ${
+                                    isDark
+                                      ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-teal-400"
+                                      : "border-slate-200 bg-white text-slate-800 hover:border-teal-500"
+                                  }`}
+                                  aria-label={`${t("editScheduleEntry")}, ${entry.start_time} ${entry.end_time}, ${entry.title}`}
+                                >
+                                  <span className="rounded-md bg-teal-600 px-2 py-1 text-xs font-bold text-white">
+                                    {entry.start_time}-{entry.end_time}
+                                  </span>
+                                  <span className="min-w-0">
+                                    <span className="block truncate text-sm font-semibold">
+                                      {entry.title}
+                                    </span>
+                                    {linkedSection || entry.note ? (
+                                      <span
+                                        className={`mt-1 block truncate text-xs ${
+                                          isDark ? "text-slate-300" : "text-slate-500"
+                                        }`}
+                                      >
+                                        {linkedSection ? linkedSection.label : ""}
+                                        {linkedSection && entry.note ? " · " : ""}
+                                        {entry.note}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                       {activeSections.map((section) => {
                         const sectionData = day.sections[section.id];
                         return (
@@ -1122,6 +1328,133 @@ export function WeeklyPlanner() {
                 {t("saveAndNextDay")}
               </button>
               {renderSaveWeekButton("w-full px-4", true)}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {scheduleDraft ? (
+        <div className="fixed inset-0 z-40 flex items-end bg-slate-950/60 px-4 py-4 sm:items-center sm:justify-center">
+          <div className={`w-full max-w-lg rounded-2xl border p-4 shadow-2xl ${panelClass}`}>
+            <h2 className="text-lg font-semibold">
+              {scheduleDraft.id ? t("editScheduleEntry") : t("addScheduleEntry")}
+            </h2>
+            {scheduleError ? (
+              <p className="mt-2 text-sm font-semibold text-rose-300">{scheduleError}</p>
+            ) : null}
+            <div className="mt-4 grid gap-3">
+              <label className="block">
+                {renderFieldLabel(t("scheduleEntryTitle"))}
+                <input
+                  value={scheduleDraft.title}
+                  onChange={(event) =>
+                    setScheduleDraft((previous) =>
+                      previous ? { ...previous, title: event.target.value } : previous,
+                    )
+                  }
+                  className={inputClass}
+                  autoFocus
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  {renderFieldLabel(t("scheduleStartTime"))}
+                  <input
+                    value={scheduleDraft.start_time}
+                    onChange={(event) =>
+                      setScheduleDraft((previous) =>
+                        previous
+                          ? { ...previous, start_time: event.target.value }
+                          : previous,
+                      )
+                    }
+                    type="time"
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block">
+                  {renderFieldLabel(t("scheduleEndTime"))}
+                  <input
+                    value={scheduleDraft.end_time}
+                    onChange={(event) =>
+                      setScheduleDraft((previous) =>
+                        previous ? { ...previous, end_time: event.target.value } : previous,
+                      )
+                    }
+                    type="time"
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+              <label className="block">
+                {renderFieldLabel(t("sectionLabel"))}
+                <select
+                  value={scheduleDraft.section_id}
+                  onChange={(event) =>
+                    setScheduleDraft((previous) =>
+                      previous
+                        ? {
+                            ...previous,
+                            section_id: event.target.value as SectionName | "",
+                          }
+                        : previous,
+                    )
+                  }
+                  className={inputClass}
+                >
+                  <option value="">{t("notSet")}</option>
+                  {activeSections.map((section) => (
+                    <option key={section.id} value={section.id}>
+                      {section.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                {renderFieldLabel(t("noteOptional"))}
+                <textarea
+                  value={scheduleDraft.note}
+                  onChange={(event) =>
+                    setScheduleDraft((previous) =>
+                      previous ? { ...previous, note: event.target.value } : previous,
+                    )
+                  }
+                  rows={3}
+                  className={inputClass}
+                />
+              </label>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={saveScheduleDraft}
+                className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
+              >
+                {t("save")}
+              </button>
+              {scheduleDraft.id ? (
+                <button
+                  type="button"
+                  onClick={deleteScheduleEntry}
+                  className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                    isDark
+                      ? "border-rose-500/70 bg-slate-900 text-rose-200 hover:bg-rose-950/40"
+                      : "border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
+                  }`}
+                >
+                  {t("delete")}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={closeScheduleDraft}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                  isDark
+                    ? "border-slate-600 bg-slate-900 text-slate-100 hover:border-teal-400"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
+                }`}
+              >
+                {t("cancel")}
+              </button>
             </div>
           </div>
         </div>

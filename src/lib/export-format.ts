@@ -10,6 +10,9 @@ const CSV_COLUMNS = [
   "weekday",
   "section",
   "section_label",
+  "start_time",
+  "end_time",
+  "title",
   "duration_minutes",
   "goal",
   "note",
@@ -48,6 +51,24 @@ export function formatExportCsv(payload: ExportPayload): string {
 
     const sections = activePlannerSections(week.planner_sections);
     for (const day of week.days) {
+      for (const entry of day.schedule_entries) {
+        const linkedSection = sections.find((section) => section.id === entry.section_id);
+        rows.push(
+          csvRow({
+            record_type: "schedule_entry",
+            week_start: week.start_date,
+            week_end: week.end_date,
+            date: day.date,
+            weekday: day.weekday_name,
+            section: entry.section_id ?? "",
+            section_label: linkedSection?.label,
+            start_time: entry.start_time,
+            end_time: entry.end_time,
+            title: entry.title,
+            note: entry.note,
+          }),
+        );
+      }
       for (const section of sections) {
         const sectionData = day.sections[section.id];
         if (!sectionData) continue;
@@ -137,6 +158,14 @@ export function formatExportMarkdown(payload: ExportPayload): string {
     const sections = activePlannerSections(week.planner_sections);
     for (const day of week.days) {
       const dayLines: string[] = [];
+      for (const entry of day.schedule_entries) {
+        const linkedSection = sections.find((section) => section.id === entry.section_id);
+        dayLines.push(
+          `  - Schedule ${entry.start_time}-${entry.end_time}: ${entry.title}${
+            linkedSection ? `; section: ${linkedSection.label}` : ""
+          }${entry.note ? `; note: ${entry.note}` : ""}`,
+        );
+      }
       for (const section of sections) {
         const sectionData = day.sections[section.id];
         if (!sectionData) continue;
@@ -197,6 +226,18 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
       "Note",
     ],
   ];
+  const scheduleRows: Array<Array<string | number>> = [
+    [
+      "Week start",
+      "Date",
+      "Weekday",
+      "Start time",
+      "End time",
+      "Title",
+      "Section",
+      "Note",
+    ],
+  ];
 
   for (const week of payload.weeks) {
     const sections = activePlannerSections(week.planner_sections);
@@ -213,6 +254,19 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
     }
 
     for (const day of week.days) {
+      for (const entry of day.schedule_entries) {
+        const linkedSection = sections.find((section) => section.id === entry.section_id);
+        scheduleRows.push([
+          week.start_date,
+          day.date,
+          day.weekday_name,
+          entry.start_time,
+          entry.end_time,
+          entry.title,
+          linkedSection?.label ?? entry.section_id ?? "",
+          entry.note,
+        ]);
+      }
       for (const section of sections) {
         const sectionData = day.sections[section.id];
         if (!sectionData) continue;
@@ -246,6 +300,11 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
     workbook,
     XLSX.utils.aoa_to_sheet(dayRows),
     "Day Sections",
+  );
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet(scheduleRows),
+    "Schedule",
   );
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(incomeRows), "Income");
 

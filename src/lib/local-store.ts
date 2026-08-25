@@ -103,6 +103,7 @@ function createWeek(startDate: string): WeekDetail {
       sections: Object.fromEntries(
         SECTION_IDS.map((sectionId) => [sectionId, emptySectionData()]),
       ) as Record<SectionName, ReturnType<typeof emptySectionData>>,
+      schedule_entries: [],
     };
   });
   const endDate = formatIsoDate(addDays(start, 6));
@@ -452,7 +453,7 @@ export async function getLocalExportPayload(): Promise<ExportPayload> {
     a.start_date < b.start_date ? -1 : 1,
   );
   return {
-    schema_version: 2,
+    schema_version: 3,
     exported_at: new Date().toISOString(),
     planner_sections: plannerSections,
     weeks,

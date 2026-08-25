@@ -29,11 +29,27 @@ export type SectionData = {
   note: string;
 };
 
+export type ScheduleEntry = {
+  id: string;
+  start_time: string;
+  end_time: string;
+  title: string;
+  note: string;
+  section_id: SectionName | null;
+  order: number;
+};
+
+export type MorningNotificationSettings = {
+  enabled: boolean;
+  time: string;
+};
+
 export type DayData = {
   date: string;
   weekday_index: number;
   weekday_name: string;
   sections: Record<SectionName, SectionData>;
+  schedule_entries: ScheduleEntry[];
 };
 
 export type WeekTotals = {

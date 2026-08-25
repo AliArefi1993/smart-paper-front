@@ -1,6 +1,7 @@
 import type {
   LegacySectionName,
   PlannerSection,
+  ScheduleEntry,
   SectionData,
   SectionName,
   WeekDetail,
@@ -156,6 +157,72 @@ export function normalizeSectionData(value: unknown): SectionData {
   };
 }
 
+function isScheduleTime(value: unknown): value is string {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function createScheduleEntryId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `schedule-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function normalizeScheduleEntries(entries: unknown): ScheduleEntry[] {
+  const incoming = Array.isArray(entries) ? entries : [];
+  return incoming
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+      const candidate = entry as Partial<ScheduleEntry>;
+      const startTime = isScheduleTime(candidate.start_time)
+        ? candidate.start_time
+        : "";
+      const endTime = isScheduleTime(candidate.end_time)
+        ? candidate.end_time
+        : "";
+      const title =
+        typeof candidate.title === "string" ? candidate.title.trim() : "";
+      if (!startTime || !endTime || timeToMinutes(startTime) >= timeToMinutes(endTime) || !title) {
+        return null;
+      }
+      const sectionId =
+        typeof candidate.section_id === "string" &&
+        (SECTION_IDS as string[]).includes(candidate.section_id)
+          ? candidate.section_id
+          : null;
+      return {
+        id:
+          typeof candidate.id === "string" && candidate.id.trim()
+            ? candidate.id
+            : createScheduleEntryId(),
+        start_time: startTime,
+        end_time: endTime,
+        title,
+        note: typeof candidate.note === "string" ? candidate.note : "",
+        section_id: sectionId,
+        order:
+          typeof candidate.order === "number" &&
+          Number.isFinite(candidate.order) &&
+          candidate.order >= 0
+            ? candidate.order
+            : index,
+      } satisfies ScheduleEntry;
+    })
+    .filter((entry): entry is ScheduleEntry => entry !== null)
+    .sort((a, b) =>
+      a.start_time.localeCompare(b.start_time) ||
+      a.end_time.localeCompare(b.end_time) ||
+      a.order - b.order ||
+      a.title.localeCompare(b.title),
+    )
+    .map((entry, index) => ({ ...entry, order: index }));
+}
+
 export function normalizeSectionsRecord(
   sections: unknown,
 ): Record<SectionName, SectionData> {
@@ -182,6 +249,7 @@ export function normalizeWeekDetail(week: WeekDetail): WeekDetail {
   const days = week.days.map((day) => ({
     ...day,
     sections: normalizeSectionsRecord(day.sections),
+    schedule_entries: normalizeScheduleEntries(day.schedule_entries),
   }));
   const activeSectionIds = plannerSections
     .filter((section) => section.active)

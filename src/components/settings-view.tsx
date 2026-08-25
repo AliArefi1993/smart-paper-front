@@ -4,13 +4,22 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
+import {
+  getMorningNotificationSettings,
+  saveMorningNotificationSettings,
+  syncMorningPlanNotification,
+} from "@/lib/notifications";
 import { normalizePlannerSections } from "@/lib/planner-sections";
 import {
   getPlannerSections,
   savePlannerSections,
 } from "@/lib/planner-store";
 import { useLanguage } from "@/lib/use-language";
-import type { PlannerSection, SectionName } from "@/lib/smart-paper-types";
+import type {
+  MorningNotificationSettings,
+  PlannerSection,
+  SectionName,
+} from "@/lib/smart-paper-types";
 
 export function SettingsView() {
   const { isPersian, t } = useLanguage();
@@ -20,6 +29,11 @@ export function SettingsView() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [notificationSettings, setNotificationSettings] =
+    useState<MorningNotificationSettings>({
+      enabled: false,
+      time: "08:00",
+    });
 
   const activeCount = useMemo(
     () => sections.filter((section) => section.active).length,
@@ -36,8 +50,10 @@ export function SettingsView() {
       setError("");
       try {
         const payload = await getPlannerSections();
+        const savedNotificationSettings = getMorningNotificationSettings();
         if (cancelled) return;
         setSections(payload);
+        setNotificationSettings(savedNotificationSettings);
         setHasUnsavedChanges(false);
       } catch (loadError) {
         if (cancelled) return;
@@ -124,14 +140,34 @@ export function SettingsView() {
         })),
       );
       const savedSections = await savePlannerSections(normalized);
+      const savedNotificationSettings =
+        saveMorningNotificationSettings(notificationSettings);
+      const notificationResult = await syncMorningPlanNotification(null, {
+        title: t("todayPlan"),
+        fallbackBody: t("notificationDescription"),
+      });
       setSections(savedSections);
+      setNotificationSettings(savedNotificationSettings);
       setHasUnsavedChanges(false);
-      setMessage(t("settingsSaved"));
+      setMessage(
+        notificationResult === "denied"
+          ? t("notificationDenied")
+          : `${t("settingsSaved")} ${t("notificationSaved")}`,
+      );
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : t("saveSettings"));
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function updateNotificationSettings(
+    nextSettings: MorningNotificationSettings,
+  ): void {
+    setMessage("");
+    setError("");
+    setHasUnsavedChanges(true);
+    setNotificationSettings(nextSettings);
   }
 
   function handleSettingsNavigation(event: MouseEvent<HTMLAnchorElement>): void {
@@ -220,6 +256,51 @@ export function SettingsView() {
                   </label>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-6 rounded-xl border border-slate-700 bg-slate-950 p-4">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    {t("morningNotification")}
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-300">
+                    {t("notificationDescription")}
+                  </p>
+                </div>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 md:min-w-48">
+                  <span className="text-sm font-semibold text-slate-200">
+                    {notificationSettings.enabled ? t("active") : t("inactive")}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.enabled}
+                    onChange={(event) =>
+                      updateNotificationSettings({
+                        ...notificationSettings,
+                        enabled: event.target.checked,
+                      })
+                    }
+                    className="h-5 w-5 accent-teal-500"
+                  />
+                </label>
+              </div>
+              <label className="mt-4 block max-w-xs">
+                <span className="text-xs font-semibold uppercase text-slate-400">
+                  {t("notificationTime")}
+                </span>
+                <input
+                  value={notificationSettings.time}
+                  onChange={(event) =>
+                    updateNotificationSettings({
+                      ...notificationSettings,
+                      time: event.target.value,
+                    })
+                  }
+                  type="time"
+                  className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-3 text-sm text-slate-100 outline-none focus:border-teal-400"
+                />
+              </label>
             </div>
           </>
         ) : null}
