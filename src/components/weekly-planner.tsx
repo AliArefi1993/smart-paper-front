@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import {
@@ -247,6 +247,7 @@ export function WeeklyPlanner() {
   const [error, setError] = useState("");
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft | null>(null);
   const [scheduleError, setScheduleError] = useState("");
+  const weekRailRef = useRef<HTMLDivElement>(null);
   const isDark = themeMode === "dark";
   const sectionTheme = isDark ? SECTION_THEME_DARK : SECTION_THEME_SETUP;
   const activeSections = useMemo(
@@ -411,6 +412,25 @@ export function WeeklyPlanner() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (!selectedWeekStart || !weekRailRef.current) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const rail = weekRailRef.current;
+      const selectedButton = rail?.querySelector<HTMLButtonElement>(
+        '[data-selected-week="true"]',
+      );
+      if (!rail || !selectedButton) return;
+
+      rail.scrollTo({
+        left: Math.max(0, selectedButton.offsetLeft - (rail.clientWidth - selectedButton.offsetWidth) / 2),
+        behavior: "auto",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedWeekStart, weeks]);
 
   const totals = useMemo(() => {
     if (!weekDetail) return null;
@@ -960,13 +980,17 @@ export function WeeklyPlanner() {
         {isLoadingWeeks ? (
           <p className={isDark ? "text-slate-300" : "text-slate-600"}>{t("loadingWeeks")}</p>
         ) : (
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:grid-cols-3 md:px-0 xl:grid-cols-5">
+          <div
+            ref={weekRailRef}
+            className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:grid-cols-3 md:px-0 xl:grid-cols-5"
+          >
             {weeks.map((week) => {
               const isSelected = week.start_date === selectedWeekStart;
               return (
                 <button
                   type="button"
                   key={week.start_date}
+                  data-selected-week={isSelected}
                   onClick={() => handleWeekSelect(week.start_date)}
                   className={`min-h-16 min-w-40 rounded-xl border px-4 py-3 text-start text-xs transition md:min-w-0 ${
                     isSelected
