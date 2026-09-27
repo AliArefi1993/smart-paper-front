@@ -320,6 +320,10 @@ function getStoredWeekTemplates(): WeekTemplate[] {
         typeof template.weekly_goal === "string" &&
         typeof template.weekly_note === "string",
     )
+    .map((template) => ({
+      ...template,
+      days: Array.isArray(template.days) ? template.days : [],
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -340,6 +344,7 @@ export async function saveLocalWeekTemplate(
     name,
     weekly_goal: template.weekly_goal.trim(),
     weekly_note: template.weekly_note.trim(),
+    days: template.days,
   };
   const nextTemplates = [
     ...templates.filter((item) => item.id !== nextTemplate.id),

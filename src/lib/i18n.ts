@@ -132,7 +132,8 @@ export const translations = {
     applyTemplate: "Apply Template",
     deleteTemplate: "Delete Template",
     saveAsTemplate: "Save as Template",
-    templateApplyConfirm: "Replace this week’s goal and note with this template?",
+    templateApplyConfirm:
+      "Replace this week with the template, including all day notes, section durations/goals/notes, and scheduled items?",
     templateName: "Template name",
     templateNameRequired: "Enter a template name.",
     templates: "Week Templates",
@@ -297,7 +298,8 @@ export const translations = {
     applyTemplate: "اعمال الگو",
     deleteTemplate: "حذف الگو",
     saveAsTemplate: "ذخیره به‌عنوان الگو",
-    templateApplyConfirm: "هدف و یادداشت این هفته با این الگو جایگزین شود؟",
+    templateApplyConfirm:
+      "این هفته با الگو جایگزین شود؟ شامل یادداشت روزها، زمان/هدف/یادداشت بخش‌ها و موارد زمان‌دار.",
     templateName: "نام الگو",
     templateNameRequired: "نام الگو را وارد کنید.",
     templates: "الگوهای هفته",

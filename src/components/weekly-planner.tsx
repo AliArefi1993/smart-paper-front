@@ -238,6 +238,7 @@ export function WeeklyPlanner() {
   const [plannerSections, setPlannerSections] = useState<PlannerSection[]>([]);
   const [weekTemplates, setWeekTemplates] = useState<WeekTemplate[]>([]);
   const [templateName, setTemplateName] = useState("");
+  const [isTemplateSheetOpen, setIsTemplateSheetOpen] = useState(false);
   const [isLoadingWeeks, setIsLoadingWeeks] = useState(true);
   const [isLoadingWeek, setIsLoadingWeek] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -577,9 +578,31 @@ export function WeeklyPlanner() {
             ...previous,
             weekly_goal: template.weekly_goal,
             weekly_note: template.weekly_note,
+            days: previous.days.map((day) => {
+              const templateDay = template.days.find(
+                (item) => item.weekday_index === day.weekday_index,
+              );
+              if (!templateDay) return day;
+              return {
+                ...day,
+                day_note: templateDay.day_note,
+                sections: Object.fromEntries(
+                  SECTION_IDS.map((sectionId) => [
+                    sectionId,
+                    templateDay.sections[sectionId] ?? day.sections[sectionId],
+                  ]),
+                ) as DayData["sections"],
+                schedule_entries: templateDay.schedule_entries.map((entry, index) => ({
+                  ...entry,
+                  id: createScheduleEntryId(),
+                  order: index,
+                })),
+              };
+            }),
           }
         : previous,
     );
+    setIsTemplateSheetOpen(false);
   }
 
   async function saveCurrentWeekAsTemplate(): Promise<void> {
@@ -594,6 +617,20 @@ export function WeeklyPlanner() {
         name: templateName,
         weekly_goal: weekDetail.weekly_goal,
         weekly_note: weekDetail.weekly_note,
+        days: weekDetail.days.map((day) => ({
+          weekday_index: day.weekday_index,
+          day_note: day.day_note,
+          sections: Object.fromEntries(
+            SECTION_IDS.map((sectionId) => [sectionId, day.sections[sectionId]]),
+          ),
+          schedule_entries: day.schedule_entries.map((entry) => ({
+            start_time: entry.start_time,
+            end_time: entry.end_time,
+            title: entry.title,
+            note: entry.note,
+            section_id: entry.section_id,
+          })),
+        })),
       });
       setWeekTemplates(templates);
       setTemplateName("");
@@ -991,6 +1028,17 @@ export function WeeklyPlanner() {
                 </span>
               </>
             ) : null}
+            <button
+              type="button"
+              onClick={() => setIsTemplateSheetOpen(true)}
+              className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                isDark
+                  ? "border-slate-600 bg-slate-800 text-slate-200 hover:border-teal-400 hover:text-teal-200"
+                  : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
+              }`}
+            >
+              {t("templates")}
+            </button>
             {renderSaveWeekButton("hidden md:inline-flex")}
           </div>
         </div>
@@ -1037,64 +1085,6 @@ export function WeeklyPlanner() {
                     className={inputClass}
                   />
                 </label>
-              </div>
-              <div className={`mt-4 border-t pt-4 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                <h4 className="text-sm font-semibold">{t("templates")}</h4>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    value={templateName}
-                    onChange={(event) => setTemplateName(event.target.value)}
-                    onKeyDown={handleEnterToSave}
-                    maxLength={80}
-                    placeholder={t("templateName")}
-                    className={inputClass}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void saveCurrentWeekAsTemplate()}
-                    disabled={!templateName.trim()}
-                    className="min-h-10 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                  >
-                    {t("saveAsTemplate")}
-                  </button>
-                </div>
-                {weekTemplates.length > 0 ? (
-                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
-                    {weekTemplates.map((template) => (
-                      <div
-                        key={template.id}
-                        className={`rounded-lg border p-3 ${
-                          isDark ? "border-slate-700 bg-slate-950/60" : "border-slate-200 bg-white"
-                        }`}
-                      >
-                        <p className="text-sm font-semibold">{template.name}</p>
-                        <p className={`mt-1 line-clamp-2 text-xs ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                          {template.weekly_goal || template.weekly_note || t("noNote")}
-                        </p>
-                        <div className="mt-3 flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => applyWeekTemplate(template)}
-                            className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-700"
-                          >
-                            {t("applyTemplate")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void removeWeekTemplate(template)}
-                            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                              isDark
-                                ? "border-slate-600 text-slate-200 hover:border-rose-400"
-                                : "border-slate-300 text-slate-700 hover:border-rose-500"
-                            }`}
-                          >
-                            {t("deleteTemplate")}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             </article>
 
@@ -1473,6 +1463,82 @@ export function WeeklyPlanner() {
               </button>
               {renderSaveWeekButton("w-full px-4", true)}
             </div>
+          </div>
+        </div>
+      ) : null}
+      {isTemplateSheetOpen ? (
+        <div
+          className="fixed inset-0 z-40 flex items-end bg-slate-950/60 px-4 py-4 sm:items-center sm:justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("templates")}
+        >
+          <div className={`max-h-[75vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-4 shadow-2xl ${panelClass}`}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">{t("templates")}</h2>
+              <button
+                type="button"
+                onClick={() => setIsTemplateSheetOpen(false)}
+                className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                  isDark
+                    ? "border-slate-600 text-slate-200 hover:border-teal-400"
+                    : "border-slate-300 text-slate-700 hover:border-teal-500"
+                }`}
+              >
+                {t("cancel")}
+              </button>
+            </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <input
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                maxLength={80}
+                placeholder={t("templateName")}
+                className={inputClass}
+              />
+              <button
+                type="button"
+                onClick={() => void saveCurrentWeekAsTemplate()}
+                disabled={!templateName.trim()}
+                className="min-h-10 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {t("saveAsTemplate")}
+              </button>
+            </div>
+            {weekTemplates.length > 0 ? (
+              <div className="mt-4 space-y-2">
+                {weekTemplates.map((template) => (
+                  <div
+                    key={template.id}
+                    className={`flex items-center gap-2 rounded-lg border p-3 ${
+                      isDark ? "border-slate-700 bg-slate-950/60" : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applyWeekTemplate(template)}
+                      className="min-h-10 min-w-0 flex-1 text-start"
+                    >
+                      <span className="block truncate text-sm font-semibold">{template.name}</span>
+                      <span className={`mt-1 block text-xs ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                        {template.days.length} {t("day").toLowerCase()} · {template.weekly_goal || template.weekly_note || t("noNote")}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void removeWeekTemplate(template)}
+                      className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                        isDark
+                          ? "border-slate-600 text-slate-200 hover:border-rose-400"
+                          : "border-slate-300 text-slate-700 hover:border-rose-500"
+                      }`}
+                    >
+                      {t("deleteTemplate")}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

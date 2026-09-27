@@ -28,6 +28,14 @@ export type WeekTemplate = {
   name: string;
   weekly_goal: string;
   weekly_note: string;
+  days: WeekTemplateDay[];
+};
+
+export type WeekTemplateDay = {
+  weekday_index: number;
+  day_note: string;
+  sections: Partial<Record<SectionName, SectionData>>;
+  schedule_entries: Array<Omit<ScheduleEntry, "id" | "order">>;
 };
 
 export type WeekTemplatesResponse = {
