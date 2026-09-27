@@ -58,6 +58,7 @@ export async function saveWeek(
       weekly_note: week.weekly_note,
       days: week.days.map((day) => ({
         date: day.date,
+        day_note: day.day_note,
         sections: day.sections,
         schedule_entries: day.schedule_entries,
       })),

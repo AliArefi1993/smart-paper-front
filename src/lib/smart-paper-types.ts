@@ -48,6 +48,7 @@ export type DayData = {
   date: string;
   weekday_index: number;
   weekday_name: string;
+  day_note: string;
   sections: Record<SectionName, SectionData>;
   schedule_entries: ScheduleEntry[];
 };

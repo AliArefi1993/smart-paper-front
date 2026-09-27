@@ -51,6 +51,18 @@ export function formatExportCsv(payload: ExportPayload): string {
 
     const sections = activePlannerSections(week.planner_sections);
     for (const day of week.days) {
+      if (day.day_note) {
+        rows.push(
+          csvRow({
+            record_type: "day_note",
+            week_start: week.start_date,
+            week_end: week.end_date,
+            date: day.date,
+            weekday: day.weekday_name,
+            note: day.day_note,
+          }),
+        );
+      }
       for (const entry of day.schedule_entries) {
         const linkedSection = sections.find((section) => section.id === entry.section_id);
         rows.push(
@@ -158,6 +170,7 @@ export function formatExportMarkdown(payload: ExportPayload): string {
     const sections = activePlannerSections(week.planner_sections);
     for (const day of week.days) {
       const dayLines: string[] = [];
+      if (day.day_note) dayLines.push(`  - Day note: ${day.day_note}`);
       for (const entry of day.schedule_entries) {
         const linkedSection = sections.find((section) => section.id === entry.section_id);
         dayLines.push(
@@ -238,6 +251,9 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
       "Note",
     ],
   ];
+  const dayNoteRows: Array<Array<string | number>> = [
+    ["Week start", "Date", "Weekday", "Day note"],
+  ];
 
   for (const week of payload.weeks) {
     const sections = activePlannerSections(week.planner_sections);
@@ -254,6 +270,9 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
     }
 
     for (const day of week.days) {
+      if (day.day_note) {
+        dayNoteRows.push([week.start_date, day.date, day.weekday_name, day.day_note]);
+      }
       for (const entry of day.schedule_entries) {
         const linkedSection = sections.find((section) => section.id === entry.section_id);
         scheduleRows.push([
@@ -305,6 +324,11 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
     workbook,
     XLSX.utils.aoa_to_sheet(scheduleRows),
     "Schedule",
+  );
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet(dayNoteRows),
+    "Day Notes",
   );
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(incomeRows), "Income");
 

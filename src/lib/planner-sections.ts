@@ -248,6 +248,7 @@ export function normalizeWeekDetail(week: WeekDetail): WeekDetail {
   const plannerSections = normalizePlannerSections(week.planner_sections);
   const days = week.days.map((day) => ({
     ...day,
+    day_note: typeof day.day_note === "string" ? day.day_note : "",
     sections: normalizeSectionsRecord(day.sections),
     schedule_entries: normalizeScheduleEntries(day.schedule_entries),
   }));

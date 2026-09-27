@@ -100,6 +100,7 @@ function createWeek(startDate: string): WeekDetail {
       date,
       weekday_index: index,
       weekday_name: weekdayName,
+      day_note: "",
       sections: Object.fromEntries(
         SECTION_IDS.map((sectionId) => [sectionId, emptySectionData()]),
       ) as Record<SectionName, ReturnType<typeof emptySectionData>>,
@@ -124,10 +125,7 @@ function getStoredWeeks(): StoredWeeks {
   let changed = false;
   const normalized = Object.fromEntries(
     Object.entries(weeks).map(([startDate, week]) => {
-      const nextWeek = normalizeWeekDetail({
-        ...week,
-        planner_sections: week.planner_sections ?? getStoredPlannerSections(),
-      });
+      const nextWeek = normalizeStoredWeek(week);
       if (JSON.stringify(nextWeek) !== JSON.stringify(week)) changed = true;
       return [startDate, nextWeek];
     }),
@@ -138,10 +136,7 @@ function getStoredWeeks(): StoredWeeks {
 
 function saveStoredWeek(week: WeekDetail): WeekDetail {
   const weeks = getStoredWeeks();
-  const normalized = normalizeWeekDetail({
-    ...week,
-    planner_sections: getStoredPlannerSections(),
-  });
+  const normalized = normalizeStoredWeek(week);
   writeJson(WEEKS_KEY, {
     ...weeks,
     [week.start_date]: normalized,
@@ -283,6 +278,22 @@ function calculateTotals(days: DayData[]): WeekTotals {
       .filter((section) => section.active)
       .map((section) => section.id),
   );
+}
+
+function normalizeStoredWeek(week: WeekDetail): WeekDetail {
+  const plannerSections = getStoredPlannerSections();
+  const normalized = normalizeWeekDetail({
+    ...week,
+    planner_sections: plannerSections,
+  });
+
+  return {
+    ...normalized,
+    totals: calculateSectionTotals(
+      normalized.days,
+      plannerSections.filter((section) => section.active).map((section) => section.id),
+    ),
+  };
 }
 
 function getStoredPlannerSections() {

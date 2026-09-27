@@ -498,6 +498,20 @@ export function WeeklyPlanner() {
     });
   }
 
+  function updateDayNote(dayDate: string, dayNote: string): void {
+    setHasUnsavedChanges(true);
+    setWeekDetail((previous) => {
+      if (!previous) return previous;
+
+      return {
+        ...previous,
+        days: previous.days.map((day) =>
+          day.date === dayDate ? { ...day, day_note: dayNote } : day,
+        ),
+      };
+    });
+  }
+
   function updateSectionGoal(dayDate: string, section: SectionName, goal: string): void {
     setHasUnsavedChanges(true);
     setWeekDetail((previous) => {
@@ -696,7 +710,7 @@ export function WeeklyPlanner() {
   }
 
   function dayHasDetails(day: DayData): boolean {
-    return day.schedule_entries.length > 0 || activeSections.some((section) => {
+    return Boolean(day.day_note.trim()) || day.schedule_entries.length > 0 || activeSections.some((section) => {
       const data = day.sections[section.id];
       return Boolean(data.duration_minutes || data.goal.trim() || data.note.trim());
     });
@@ -1060,6 +1074,25 @@ export function WeeklyPlanner() {
                     </button>
 
                     <div className={`mt-3 space-y-3 ${isActiveDay ? "block" : "hidden lg:block"}`}>
+                      <div
+                        className={`rounded-xl border p-3 ${
+                          isDark
+                            ? "border-slate-700 bg-slate-950/70"
+                            : "border-slate-200 bg-slate-50"
+                        }`}
+                      >
+                        <label className="block">
+                          {renderFieldLabel(t("dayNote"))}
+                          <textarea
+                            value={day.day_note}
+                            onChange={(event) => updateDayNote(day.date, event.target.value)}
+                            onKeyDown={handleTextareaEnterToSave}
+                            placeholder={t("writeDayNote")}
+                            rows={2}
+                            className={inputClass}
+                          />
+                        </label>
+                      </div>
                       <div
                         className={`rounded-xl border p-3 ${
                           isDark
