@@ -23,6 +23,17 @@ export type PlannerSectionsResponse = {
   planner_sections: PlannerSection[];
 };
 
+export type WeekTemplate = {
+  id: number;
+  name: string;
+  weekly_goal: string;
+  weekly_note: string;
+};
+
+export type WeekTemplatesResponse = {
+  week_templates: WeekTemplate[];
+};
+
 export type SectionData = {
   duration_minutes: number;
   goal: string;
@@ -126,6 +137,7 @@ export type ExportPayload = {
   schema_version?: number;
   exported_at: string;
   planner_sections?: PlannerSection[];
+  week_templates?: WeekTemplate[];
   weeks: WeekDetail[];
   finance: FinancePayload;
 };

@@ -1,11 +1,14 @@
 import { requestJson } from "@/lib/api-client";
 import {
   getLocalPlannerSections,
+  getLocalWeekTemplates,
   getLocalWeek,
   getLocalWeekSummaries,
   getLocalWeeks,
   saveLocalPlannerSections,
+  saveLocalWeekTemplate,
   saveLocalWeek,
+  deleteLocalWeekTemplate,
 } from "@/lib/local-store";
 import {
   normalizePlannerSections,
@@ -17,6 +20,8 @@ import type {
   DayData,
   PlannerSection,
   PlannerSectionsResponse,
+  WeekTemplate,
+  WeekTemplatesResponse,
   WeekDetail,
   WeekListPayload,
   WeekSummariesResponse,
@@ -103,4 +108,33 @@ export async function savePlannerSections(
       body: JSON.stringify({ planner_sections: toPlannerSectionPayload(normalized) }),
     })).planner_sections,
   );
+}
+
+export async function getWeekTemplates(): Promise<WeekTemplate[]> {
+  if (isLocalStorageMode()) return getLocalWeekTemplates();
+  return (await requestJson<WeekTemplatesResponse>("/week-templates/")).week_templates;
+}
+
+export async function saveWeekTemplate(
+  template: Omit<WeekTemplate, "id">,
+): Promise<WeekTemplate[]> {
+  if (isLocalStorageMode()) return saveLocalWeekTemplate(template);
+  return (
+    await requestJson<WeekTemplatesResponse>("/week-templates/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(template),
+    })
+  ).week_templates;
+}
+
+export async function deleteWeekTemplate(templateId: number): Promise<WeekTemplate[]> {
+  if (isLocalStorageMode()) return deleteLocalWeekTemplate(templateId);
+  return (
+    await requestJson<WeekTemplatesResponse>("/week-templates/", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: templateId }),
+    })
+  ).week_templates;
 }

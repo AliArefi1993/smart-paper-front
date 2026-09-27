@@ -14,8 +14,11 @@ import {
 import { activePlannerSections, calculateSectionTotals, SECTION_IDS } from "@/lib/planner-sections";
 import {
   getPlannerSections,
+  getWeekTemplates,
   getWeek,
   getWeeks,
+  deleteWeekTemplate,
+  saveWeekTemplate,
   saveWeek as saveWeekData,
 } from "@/lib/planner-store";
 import { syncMorningPlanNotification } from "@/lib/notifications";
@@ -28,6 +31,7 @@ import type {
   SectionName,
   WeekDetail,
   WeekItem,
+  WeekTemplate,
   WeekTotals,
 } from "@/lib/smart-paper-types";
 
@@ -232,6 +236,8 @@ export function WeeklyPlanner() {
   const [pendingWeekStart, setPendingWeekStart] = useState<string | null>(null);
   const [weekDetail, setWeekDetail] = useState<WeekDetail | null>(null);
   const [plannerSections, setPlannerSections] = useState<PlannerSection[]>([]);
+  const [weekTemplates, setWeekTemplates] = useState<WeekTemplate[]>([]);
+  const [templateName, setTemplateName] = useState("");
   const [isLoadingWeeks, setIsLoadingWeeks] = useState(true);
   const [isLoadingWeek, setIsLoadingWeek] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -351,15 +357,17 @@ export function WeeklyPlanner() {
 
     async function loadInitialData() {
       try {
-        const [weeksPayload, sectionsPayload] = await Promise.all([
+        const [weeksPayload, sectionsPayload, templatesPayload] = await Promise.all([
           getWeeks(8),
           getPlannerSections(),
+          getWeekTemplates(),
         ]);
 
         if (cancelled) return;
 
         setWeeks(weeksPayload.weeks);
         setPlannerSections(sectionsPayload);
+        setWeekTemplates(templatesPayload);
         setSelectedWeekStart(weeksPayload.current_week_start);
         setIsLoadingWeeks(false);
         setIsLoadingWeek(true);
@@ -558,6 +566,51 @@ export function WeeklyPlanner() {
         weekly_note: note,
       };
     });
+  }
+
+  function applyWeekTemplate(template: WeekTemplate): void {
+    if (!window.confirm(t("templateApplyConfirm"))) return;
+    setHasUnsavedChanges(true);
+    setWeekDetail((previous) =>
+      previous
+        ? {
+            ...previous,
+            weekly_goal: template.weekly_goal,
+            weekly_note: template.weekly_note,
+          }
+        : previous,
+    );
+  }
+
+  async function saveCurrentWeekAsTemplate(): Promise<void> {
+    if (!weekDetail) return;
+    if (!templateName.trim()) {
+      setError(t("templateNameRequired"));
+      return;
+    }
+
+    try {
+      const templates = await saveWeekTemplate({
+        name: templateName,
+        weekly_goal: weekDetail.weekly_goal,
+        weekly_note: weekDetail.weekly_note,
+      });
+      setWeekTemplates(templates);
+      setTemplateName("");
+      setError("");
+      setMessage(t("savedSuccessfully"));
+    } catch (templateError) {
+      setError(templateError instanceof Error ? templateError.message : t("saveAsTemplate"));
+    }
+  }
+
+  async function removeWeekTemplate(template: WeekTemplate): Promise<void> {
+    if (!window.confirm(`${t("deleteTemplate")}: ${template.name}?`)) return;
+    try {
+      setWeekTemplates(await deleteWeekTemplate(template.id));
+    } catch (templateError) {
+      setError(templateError instanceof Error ? templateError.message : t("deleteTemplate"));
+    }
   }
 
   function openNewScheduleEntry(day: DayData): void {
@@ -984,6 +1037,64 @@ export function WeeklyPlanner() {
                     className={inputClass}
                   />
                 </label>
+              </div>
+              <div className={`mt-4 border-t pt-4 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+                <h4 className="text-sm font-semibold">{t("templates")}</h4>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={templateName}
+                    onChange={(event) => setTemplateName(event.target.value)}
+                    onKeyDown={handleEnterToSave}
+                    maxLength={80}
+                    placeholder={t("templateName")}
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void saveCurrentWeekAsTemplate()}
+                    disabled={!templateName.trim()}
+                    className="min-h-10 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  >
+                    {t("saveAsTemplate")}
+                  </button>
+                </div>
+                {weekTemplates.length > 0 ? (
+                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                    {weekTemplates.map((template) => (
+                      <div
+                        key={template.id}
+                        className={`rounded-lg border p-3 ${
+                          isDark ? "border-slate-700 bg-slate-950/60" : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <p className="text-sm font-semibold">{template.name}</p>
+                        <p className={`mt-1 line-clamp-2 text-xs ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                          {template.weekly_goal || template.weekly_note || t("noNote")}
+                        </p>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyWeekTemplate(template)}
+                            className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-700"
+                          >
+                            {t("applyTemplate")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void removeWeekTemplate(template)}
+                            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                              isDark
+                                ? "border-slate-600 text-slate-200 hover:border-rose-400"
+                                : "border-slate-300 text-slate-700 hover:border-rose-500"
+                            }`}
+                          >
+                            {t("deleteTemplate")}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </article>
 

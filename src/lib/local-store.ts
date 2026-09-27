@@ -6,6 +6,7 @@ import type {
   ImportResult,
   IncomeEntry,
   SectionName,
+  WeekTemplate,
   WeekDetail,
   WeekListPayload,
   WeekSummary,
@@ -31,6 +32,7 @@ const WEEKDAY_NAMES = [
 ];
 const WEEKS_KEY = "smart-paper.local.weeks";
 const PLANNER_SECTIONS_KEY = "smart-paper.local.planner-sections";
+const WEEK_TEMPLATES_KEY = "smart-paper.local.week-templates";
 const FINANCE_KEY = "smart-paper.local.finance";
 const FINANCE_UNLOCK_KEY = "smart-paper.local.finance-unlocked-until";
 const FINANCE_UNLOCK_TTL_SECONDS = 3600;
@@ -148,6 +150,7 @@ function clearStoredData(): void {
   const storage = requireBrowserStorage();
   storage.removeItem(WEEKS_KEY);
   storage.removeItem(PLANNER_SECTIONS_KEY);
+  storage.removeItem(WEEK_TEMPLATES_KEY);
   storage.removeItem(FINANCE_KEY);
 }
 
@@ -304,6 +307,52 @@ function getStoredPlannerSections() {
 
 export async function getLocalPlannerSections() {
   return getStoredPlannerSections();
+}
+
+function getStoredWeekTemplates(): WeekTemplate[] {
+  const templates = readJson<WeekTemplate[]>(WEEK_TEMPLATES_KEY, []);
+  return templates
+    .filter(
+      (template) =>
+        template &&
+        Number.isInteger(template.id) &&
+        typeof template.name === "string" &&
+        typeof template.weekly_goal === "string" &&
+        typeof template.weekly_note === "string",
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getLocalWeekTemplates(): Promise<WeekTemplate[]> {
+  return getStoredWeekTemplates();
+}
+
+export async function saveLocalWeekTemplate(
+  template: Omit<WeekTemplate, "id">,
+): Promise<WeekTemplate[]> {
+  const name = template.name.trim();
+  if (!name) throw new Error("Template name is required.");
+
+  const templates = getStoredWeekTemplates();
+  const existing = templates.find((item) => item.name === name);
+  const nextTemplate: WeekTemplate = {
+    id: existing?.id ?? Date.now(),
+    name,
+    weekly_goal: template.weekly_goal.trim(),
+    weekly_note: template.weekly_note.trim(),
+  };
+  const nextTemplates = [
+    ...templates.filter((item) => item.id !== nextTemplate.id),
+    nextTemplate,
+  ].sort((a, b) => a.name.localeCompare(b.name));
+  writeJson(WEEK_TEMPLATES_KEY, nextTemplates);
+  return nextTemplates;
+}
+
+export async function deleteLocalWeekTemplate(templateId: number): Promise<WeekTemplate[]> {
+  const templates = getStoredWeekTemplates().filter((template) => template.id !== templateId);
+  writeJson(WEEK_TEMPLATES_KEY, templates);
+  return templates;
 }
 
 export async function saveLocalPlannerSections(sections: unknown) {
@@ -464,9 +513,10 @@ export async function getLocalExportPayload(): Promise<ExportPayload> {
     a.start_date < b.start_date ? -1 : 1,
   );
   return {
-    schema_version: 3,
+    schema_version: 4,
     exported_at: new Date().toISOString(),
     planner_sections: plannerSections,
+    week_templates: getStoredWeekTemplates(),
     weeks,
     finance: formatFinance(getStoredFinance()),
   };
@@ -487,6 +537,9 @@ export async function importLocalExportPayload(
 
   if (Array.isArray(payload.planner_sections)) {
     await saveLocalPlannerSections(payload.planner_sections);
+  }
+  if (Array.isArray(payload.week_templates)) {
+    writeJson(WEEK_TEMPLATES_KEY, payload.week_templates);
   }
 
   let weeksImported = 0;
