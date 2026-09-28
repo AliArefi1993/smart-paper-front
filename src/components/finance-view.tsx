@@ -20,6 +20,9 @@ import {
 import { useLanguage } from "@/lib/use-language";
 import type { FinancePayload, IncomeEntry } from "@/lib/smart-paper-types";
 
+const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
+const usesDefaultLocalPin = isLocalDataMode && !process.env.NEXT_PUBLIC_FINANCE_PIN;
+
 export function FinanceView() {
   const { language, isPersian, t } = useLanguage();
   const [data, setData] = useState<FinancePayload | null>(null);
@@ -315,6 +318,8 @@ export function FinanceView() {
           <p className="mt-2 text-sm text-amber-100/80">
             {t("enterPin")}
           </p>
+          {isLocalDataMode ? <p className="mt-2 text-sm text-amber-200">{t("localPinNotice")}</p> : null}
+          {usesDefaultLocalPin ? <p className="mt-2 text-sm text-amber-200">{t("defaultLocalPinHint")}</p> : null}
           <input
             type="password"
             value={pinInput}

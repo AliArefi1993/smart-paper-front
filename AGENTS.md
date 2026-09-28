@@ -40,7 +40,7 @@ cd smart-paper-front
 ## API Conventions
 
 - Use `src/lib/api-client.ts` for backend requests.
-- Use the existing store adapter pattern so backend mode and local-storage mode stay aligned.
+- Use the existing store adapter pattern. Android local-data mode is the product priority; backend parity is paused until server or web use resumes (team decision D-007).
 - Finance/export/import requests must include credentials in backend mode.
 - Keep types in `src/lib/smart-paper-types.ts` aligned with Django JSON responses.
 - Default backend API is port `8010`; `NEXT_PUBLIC_API_BASE_URL` may override it.
@@ -102,7 +102,7 @@ Type check:
 npx tsc --noEmit
 ```
 
-No frontend test script or test config was discovered.
+Focused local import safety tests are available with `npm test`.
 
 Android local-data build:
 

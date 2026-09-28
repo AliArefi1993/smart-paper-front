@@ -11,7 +11,6 @@ import type {
   WeekListPayload,
   WeekSummary,
   WeekSummariesResponse,
-  WeekTotals,
 } from "@/lib/smart-paper-types";
 import {
   SECTION_IDS,
@@ -20,6 +19,7 @@ import {
   normalizePlannerSections,
   normalizeWeekDetail,
 } from "@/lib/planner-sections";
+import { commitStorageChanges, parseStoredJson, validateLocalBackup } from "@/lib/local-import-safety";
 
 const WEEKDAY_NAMES = [
   "Saturday",
@@ -82,19 +82,14 @@ function getSaturdayStart(date: Date): Date {
 
 function readJson<T>(key: string, fallback: T): T {
   const raw = requireBrowserStorage().getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+  return parseStoredJson(raw, fallback);
 }
 
 function writeJson<T>(key: string, value: T): void {
   requireBrowserStorage().setItem(key, JSON.stringify(value));
 }
 
-function createWeek(startDate: string): WeekDetail {
+function createWeek(startDate: string, plannerSections = getStoredPlannerSections()): WeekDetail {
   const start = parseIsoDate(startDate);
   const days: DayData[] = WEEKDAY_NAMES.map((weekdayName, index) => {
     const date = formatIsoDate(addDays(start, index));
@@ -116,18 +111,27 @@ function createWeek(startDate: string): WeekDetail {
     label: `${startDate} to ${endDate}`,
     weekly_goal: "",
     weekly_note: "",
-    planner_sections: getStoredPlannerSections(),
+    planner_sections: plannerSections,
     days,
-    totals: calculateTotals(days),
+    totals: calculateSectionTotals(
+      days,
+      plannerSections.filter((section) => section.active).map((section) => section.id),
+    ),
   };
 }
 
 function getStoredWeeks(): StoredWeeks {
-  const weeks = readJson<StoredWeeks>(WEEKS_KEY, {});
+  const weeks = readJson<unknown>(WEEKS_KEY, {});
+  if (!weeks || typeof weeks !== "object" || Array.isArray(weeks)) {
+    throw new Error("Saved planner weeks are damaged. Restore from a JSON backup.");
+  }
   let changed = false;
   const normalized = Object.fromEntries(
     Object.entries(weeks).map(([startDate, week]) => {
-      const nextWeek = normalizeStoredWeek(week);
+      if (!week || typeof week !== "object" || !Array.isArray((week as WeekDetail).days)) {
+        throw new Error("Saved planner weeks are damaged. Restore from a JSON backup.");
+      }
+      const nextWeek = normalizeStoredWeek(week as WeekDetail);
       if (JSON.stringify(nextWeek) !== JSON.stringify(week)) changed = true;
       return [startDate, nextWeek];
     }),
@@ -144,14 +148,6 @@ function saveStoredWeek(week: WeekDetail): WeekDetail {
     [week.start_date]: normalized,
   });
   return normalized;
-}
-
-function clearStoredData(): void {
-  const storage = requireBrowserStorage();
-  storage.removeItem(WEEKS_KEY);
-  storage.removeItem(PLANNER_SECTIONS_KEY);
-  storage.removeItem(WEEK_TEMPLATES_KEY);
-  storage.removeItem(FINANCE_KEY);
 }
 
 function getOrCreateWeek(startDate: string): WeekDetail {
@@ -274,15 +270,6 @@ function collectDetailsBySection(days: DayData[]): WeekSummary["details_by_secti
   return details;
 }
 
-function calculateTotals(days: DayData[]): WeekTotals {
-  return calculateSectionTotals(
-    days,
-    getStoredPlannerSections()
-      .filter((section) => section.active)
-      .map((section) => section.id),
-  );
-}
-
 function normalizeStoredWeek(week: WeekDetail): WeekDetail {
   const plannerSections = getStoredPlannerSections();
   const normalized = normalizeWeekDetail({
@@ -300,8 +287,15 @@ function normalizeStoredWeek(week: WeekDetail): WeekDetail {
 }
 
 function getStoredPlannerSections() {
-  const sections = normalizePlannerSections(readJson(PLANNER_SECTIONS_KEY, null));
-  writeJson(PLANNER_SECTIONS_KEY, sections);
+  const raw = requireBrowserStorage().getItem(PLANNER_SECTIONS_KEY);
+  const saved = parseStoredJson<unknown>(raw, null);
+  if (raw !== null && !Array.isArray(saved)) {
+    throw new Error("Saved planner sections are damaged. Restore from a JSON backup.");
+  }
+  const sections = normalizePlannerSections(saved);
+  if (requireBrowserStorage().getItem(PLANNER_SECTIONS_KEY) !== JSON.stringify(sections)) {
+    writeJson(PLANNER_SECTIONS_KEY, sections);
+  }
   return sections;
 }
 
@@ -384,10 +378,14 @@ export async function saveLocalPlannerSections(sections: unknown) {
 }
 
 function getStoredFinance(): StoredFinance {
-  return readJson<StoredFinance>(FINANCE_KEY, {
+  const saved = readJson<StoredFinance>(FINANCE_KEY, {
     goal_amount: 0,
     entries: [],
   });
+  if (!saved || !Number.isInteger(saved.goal_amount) || !Array.isArray(saved.entries)) {
+    throw new Error("Saved finance data is damaged. Restore from a JSON backup.");
+  }
+  return saved;
 }
 
 function writeStoredFinance(finance: StoredFinance): FinancePayload {
@@ -532,39 +530,47 @@ export async function importLocalExportPayload(
   mode: ImportMode,
 ): Promise<ImportResult> {
   assertFinanceUnlocked();
-  if (!Array.isArray(payload.weeks) || !payload.finance) {
-    throw new Error("Import file must be a Smart Paper JSON backup.");
+  validateLocalBackup(payload);
+  if (mode !== "merge" && mode !== "replace") {
+    throw new Error("Import mode must be merge or replace.");
   }
 
-  if (mode === "replace") {
-    clearStoredData();
-  }
-
-  if (Array.isArray(payload.planner_sections)) {
-    await saveLocalPlannerSections(payload.planner_sections);
-  }
-  if (Array.isArray(payload.week_templates)) {
-    writeJson(WEEK_TEMPLATES_KEY, payload.week_templates);
-  }
-
-  let weeksImported = 0;
+  const plannerSections = Array.isArray(payload.planner_sections)
+    ? normalizePlannerSections(payload.planner_sections)
+    : mode === "replace"
+      ? normalizePlannerSections(null)
+      : getStoredPlannerSections();
+  const templates = Array.isArray(payload.week_templates)
+    ? payload.week_templates
+    : mode === "replace"
+      ? []
+      : getStoredWeekTemplates();
+  const weeks: StoredWeeks = mode === "replace" ? {} : { ...getStoredWeeks() };
+  const activeSections = plannerSections.filter((section) => section.active).map((section) => section.id);
   for (const importedWeek of payload.weeks) {
-    if (!importedWeek?.start_date || !Array.isArray(importedWeek.days)) {
-      continue;
-    }
-    const existing = getOrCreateWeek(importedWeek.start_date);
-    saveStoredWeek({
+    const existing = weeks[importedWeek.start_date] ?? createWeek(importedWeek.start_date, plannerSections);
+    const normalized = normalizeWeekDetail({
       ...existing,
       ...importedWeek,
-      totals: calculateTotals(importedWeek.days),
+      planner_sections: plannerSections,
     });
-    weeksImported += 1;
+    weeks[importedWeek.start_date] = {
+      ...normalized,
+      totals: calculateSectionTotals(normalized.days, activeSections),
+    };
+  }
+  for (const [startDate, week] of Object.entries(weeks)) {
+    weeks[startDate] = {
+      ...week,
+      planner_sections: plannerSections,
+      totals: calculateSectionTotals(week.days, activeSections),
+    };
   }
 
-  const currentFinance = getStoredFinance();
-  const importedEntries = Array.isArray(payload.finance.entries)
-    ? payload.finance.entries
-    : [];
+  const currentFinance: StoredFinance = mode === "replace"
+    ? { goal_amount: 0, entries: [] }
+    : getStoredFinance();
+  const importedEntries = payload.finance.entries;
   const entriesById = new Map<number, IncomeEntry>();
   for (const entry of currentFinance.entries) {
     entriesById.set(entry.id, entry);
@@ -583,19 +589,31 @@ export async function importLocalExportPayload(
     });
   });
 
-  const financeGoalUpdated = Number.isInteger(payload.finance.goal_amount);
-  writeStoredFinance({
-    goal_amount: financeGoalUpdated
-      ? payload.finance.goal_amount
-      : currentFinance.goal_amount,
+  const financeGoalUpdated = true;
+  const finance: StoredFinance = {
+    goal_amount: payload.finance.goal_amount,
     entries: [...entriesById.values()],
+  };
+
+  commitStorageChanges(requireBrowserStorage(), {
+    [PLANNER_SECTIONS_KEY]: JSON.stringify(plannerSections),
+    [WEEK_TEMPLATES_KEY]: JSON.stringify(templates),
+    [WEEKS_KEY]: JSON.stringify(weeks),
+    [FINANCE_KEY]: JSON.stringify(finance),
   });
 
   return {
     mode,
-    weeks_imported: weeksImported,
+    weeks_imported: payload.weeks.length,
     income_entries_imported: importedEntries.length,
     finance_goal_updated: financeGoalUpdated,
-    payload: await getLocalExportPayload(),
+    payload: {
+      schema_version: 4,
+      exported_at: new Date().toISOString(),
+      planner_sections: plannerSections,
+      week_templates: templates,
+      weeks: Object.values(weeks).sort((a, b) => a.start_date.localeCompare(b.start_date)),
+      finance: formatFinance(finance),
+    },
   };
 }

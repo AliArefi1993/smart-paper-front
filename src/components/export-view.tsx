@@ -14,6 +14,9 @@ import { unlockFinanceSession } from "@/lib/finance-store";
 import { useLanguage } from "@/lib/use-language";
 import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
 
+const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
+const usesDefaultLocalPin = isLocalDataMode && !process.env.NEXT_PUBLIC_FINANCE_PIN;
+
 function isForbidden(errorValue: unknown): boolean {
   return errorValue instanceof Response && errorValue.status === 403;
 }
@@ -192,6 +195,9 @@ export function ExportView() {
     try {
       const raw = await file.text();
       const importedPayload = JSON.parse(raw) as ExportPayload;
+      if (importMode === "replace" && !window.confirm(t("replaceImportConfirm"))) {
+        return;
+      }
       const result = await importExportPayload(importedPayload, importMode);
       setPayload(result.payload);
       setMessage(
@@ -224,6 +230,7 @@ export function ExportView() {
           <p className="mt-2 text-sm text-slate-300">
             {t("saveBackupReadable")}
           </p>
+          {isLocalDataMode ? <p className="mt-2 text-sm text-amber-200">{t("backupNotice")}</p> : null}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
@@ -258,6 +265,7 @@ export function ExportView() {
             <label className="block text-sm font-semibold text-slate-200" htmlFor="export-pin">
               {t("financePin")}
             </label>
+            {usesDefaultLocalPin ? <p className="mt-2 text-sm text-amber-200">{t("defaultLocalPinHint")}</p> : null}
             <input
               id="export-pin"
               type="password"
