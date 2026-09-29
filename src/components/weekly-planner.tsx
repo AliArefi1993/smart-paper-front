@@ -897,6 +897,13 @@ export function WeeklyPlanner() {
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <LanguageToggle tone={isDark ? "dark" : "light"} />
             <Link
+              href="/timer"
+              onClick={handlePlannerNavigation}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
+            >
+              {t("timerTitle")}
+            </Link>
+            <Link
               href="/summaries"
               onClick={handlePlannerNavigation}
               className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
