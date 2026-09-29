@@ -179,48 +179,48 @@ export function SettingsView() {
   return (
     <main
       dir={isPersian ? "rtl" : "ltr"}
-      className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 md:px-6"
+      className="sp-page min-h-screen px-4 py-6 md:px-6"
     >
-      <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-2xl border border-[#d9e4de] bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t("settings")}</h1>
-          <p className="mt-2 text-sm text-slate-300">{t("plannerSectionsDescription")}</p>
+          <p className="mt-2 text-sm text-[#536660]">{t("plannerSectionsDescription")}</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
           <Link
             href="/"
             onClick={handleSettingsNavigation}
-            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold hover:border-teal-400 hover:text-teal-200"
+            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800"
           >
             {t("planner")}
           </Link>
           <Link
             href="/summaries"
             onClick={handleSettingsNavigation}
-            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold hover:border-teal-400 hover:text-teal-200"
+            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800"
           >
             {t("summaries")}
           </Link>
         </div>
       </section>
 
-      <section className="mx-auto mt-6 w-full max-w-5xl rounded-2xl border border-slate-700 bg-slate-900/85 p-5">
-        {isLoading ? <p className="text-slate-300">{t("loadingSettings")}</p> : null}
-        {error ? <p className="text-sm font-semibold text-rose-300">{error}</p> : null}
-        {message ? <p className="text-sm font-semibold text-emerald-300">{message}</p> : null}
+      <section className="mx-auto mt-6 w-full max-w-5xl rounded-2xl border border-[#d9e4de] bg-white p-5">
+        {isLoading ? <p className="text-[#536660]">{t("loadingSettings")}</p> : null}
+        {error ? <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p> : null}
+        {message ? <p role="status" className="text-sm font-semibold text-teal-800">{message}</p> : null}
 
         {!isLoading ? (
           <>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-slate-300">
+              <p className="text-sm text-[#536660]">
                 {t("activeSectionsCount", { count: activeCount })}
               </p>
               <button
                 type="button"
                 onClick={() => void handleSave()}
                 disabled={!canSave}
-                className="rounded-xl bg-teal-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-teal-400 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300"
+                className="rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-[#536660]"
               >
                 {isSaving ? t("saving") : t("saveSettings")}
               </button>
@@ -230,21 +230,21 @@ export function SettingsView() {
               {sections.map((section) => (
                 <div
                   key={section.id}
-                  className="grid gap-3 rounded-xl border border-slate-700 bg-slate-950 p-4 md:grid-cols-[minmax(0,1fr)_auto]"
+                  className="grid gap-3 rounded-xl border border-[#d9e4de] bg-white p-4 md:grid-cols-[minmax(0,1fr)_auto]"
                 >
                   <label className="block">
-                    <span className="text-xs font-semibold uppercase text-slate-400">
+                    <span className="text-xs font-semibold uppercase text-[#536660]">
                       {t("sectionLabel")} {section.order}
                     </span>
                     <input
                       value={section.label}
                       onChange={(event) => updateLabel(section.id, event.target.value)}
-                      className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-3 text-sm text-slate-100 outline-none focus:border-teal-400"
+                      className="mt-2 w-full rounded-xl border border-[#b6c9bf] bg-white px-4 py-3 text-sm text-[#172b29] outline-none focus:border-teal-700"
                       aria-invalid={!section.label.trim()}
                     />
                   </label>
-                  <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 md:min-w-48">
-                    <span className="text-sm font-semibold text-slate-200">
+                  <label className="flex items-center justify-between gap-3 rounded-xl border border-[#d9e4de] bg-white px-4 py-3 md:min-w-48">
+                    <span className="text-sm font-semibold text-[#172b29]">
                       {section.active ? t("active") : t("inactive")}
                     </span>
                     <input
@@ -258,18 +258,18 @@ export function SettingsView() {
               ))}
             </div>
 
-            <div className="mt-6 rounded-xl border border-slate-700 bg-slate-950 p-4">
+            <div className="mt-6 rounded-xl border border-[#d9e4de] bg-white p-4">
               <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                 <div>
                   <h2 className="text-lg font-semibold">
                     {t("morningNotification")}
                   </h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-300">
+                  <p className="mt-1 text-sm leading-6 text-[#536660]">
                     {t("notificationDescription")}
                   </p>
                 </div>
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 md:min-w-48">
-                  <span className="text-sm font-semibold text-slate-200">
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-[#d9e4de] bg-white px-4 py-3 md:min-w-48">
+                  <span className="text-sm font-semibold text-[#172b29]">
                     {notificationSettings.enabled ? t("active") : t("inactive")}
                   </span>
                   <input
@@ -286,7 +286,7 @@ export function SettingsView() {
                 </label>
               </div>
               <label className="mt-4 block max-w-xs">
-                <span className="text-xs font-semibold uppercase text-slate-400">
+                <span className="text-xs font-semibold uppercase text-[#536660]">
                   {t("notificationTime")}
                 </span>
                 <input
@@ -298,7 +298,7 @@ export function SettingsView() {
                     })
                   }
                   type="time"
-                  className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-3 text-sm text-slate-100 outline-none focus:border-teal-400"
+                  className="mt-2 w-full rounded-xl border border-[#b6c9bf] bg-white px-4 py-3 text-sm text-[#172b29] outline-none focus:border-teal-700"
                 />
               </label>
             </div>

@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #bccdcd;
-  --foreground: #0f172a;
+  --background: #f7f8f5;
+  --foreground: #172b29;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f2;
+  --border: #d9e4de;
+  --muted-foreground: #536660;
+  --primary: #0f766e;
+  --primary-soft: #e7f4ef;
 }
 
 html {
@@ -17,10 +23,7 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(circle at 10% 10%, #86b9ae 0%, transparent 48%),
-    radial-gradient(circle at 90% 0%, #c8a968 0%, transparent 43%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
@@ -46,8 +49,26 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #2dd4bf;
+  outline: 2px solid #0f766e;
   outline-offset: 3px;
+}
+
+.sp-page {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.sp-dark {
+  color-scheme: dark;
+}
+
+.sp-dark :focus-visible {
+  outline-color: #5ee0cc;
+}
+
+.sp-light,
+.sp-page {
+  color-scheme: light;
 }
 
 [dir="rtl"] {
@@ -69,4 +90,9 @@ textarea:focus-visible {
     Tahoma,
     Arial,
     sans-serif;
+}
+
+[dir="rtl"] .uppercase {
+  text-transform: none;
+  letter-spacing: normal;
 }

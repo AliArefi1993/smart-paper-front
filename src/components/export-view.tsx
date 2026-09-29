@@ -223,36 +223,36 @@ export function ExportView() {
   }
 
   return (
-    <main dir={isPersian ? "rtl" : "ltr"} className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 md:px-6">
-      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:flex-row sm:items-center sm:justify-between">
+    <main dir={isPersian ? "rtl" : "ltr"} className="sp-page min-h-screen px-4 py-6 md:px-6">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-2xl border border-[#d9e4de] bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t("exportData")}</h1>
-          <p className="mt-2 text-sm text-slate-300">
+          <p className="mt-2 text-sm text-[#536660]">
             {t("saveBackupReadable")}
           </p>
-          {isLocalDataMode ? <p className="mt-2 text-sm text-amber-200">{t("backupNotice")}</p> : null}
+          {isLocalDataMode ? <p className="mt-2 text-sm text-amber-900">{t("backupNotice")}</p> : null}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
           <Link
             href="/finance"
-            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold hover:border-teal-400 hover:text-teal-200"
+            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800"
           >
             {t("finance")}
           </Link>
           <Link
             href="/"
-            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold hover:border-teal-400 hover:text-teal-200"
+            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800"
           >
             {t("planner")}
           </Link>
         </div>
       </section>
 
-      <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-slate-700 bg-slate-900/85 p-5">
-        {isLoading ? <p className="text-slate-300">{t("preparingExport")}</p> : null}
-        {error ? <p className="text-rose-300">{error}</p> : null}
-        {message ? <p className="text-emerald-300">{message}</p> : null}
+      <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#d9e4de] bg-white p-5">
+        {isLoading ? <p className="text-[#536660]">{t("preparingExport")}</p> : null}
+        {error ? <p role="alert" className="text-rose-700">{error}</p> : null}
+        {message ? <p role="status" className="text-teal-800">{message}</p> : null}
 
         {isLocked ? (
           <form
@@ -262,22 +262,22 @@ export function ExportView() {
               void handleUnlock();
             }}
           >
-            <label className="block text-sm font-semibold text-slate-200" htmlFor="export-pin">
+            <label className="block text-sm font-semibold text-[#172b29]" htmlFor="export-pin">
               {t("financePin")}
             </label>
-            {usesDefaultLocalPin ? <p className="mt-2 text-sm text-amber-200">{t("defaultLocalPinHint")}</p> : null}
+            {usesDefaultLocalPin ? <p className="mt-2 text-sm text-amber-900">{t("defaultLocalPinHint")}</p> : null}
             <input
               id="export-pin"
               type="password"
               value={pinInput}
               onChange={(event) => setPinInput(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-slate-100 outline-none focus:border-teal-400"
+              className="mt-2 w-full rounded-xl border border-[#b6c9bf] bg-white px-4 py-3 text-[#172b29] outline-none focus:border-teal-700"
               autoComplete="current-password"
             />
             <button
               type="submit"
               disabled={isUnlocking}
-              className="mt-3 rounded-xl bg-teal-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-teal-400 disabled:opacity-60"
+              className="mt-3 rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
             >
               {isUnlocking ? t("unlocking") : t("unlockExport")}
             </button>
@@ -287,16 +287,16 @@ export function ExportView() {
         {payload ? (
           <>
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-slate-700 bg-slate-950 p-4">
-                <p className="text-xs uppercase text-slate-400">{t("weeks")}</p>
+              <div className="rounded-xl border border-[#d9e4de] bg-white p-4">
+                <p className="text-xs uppercase text-[#536660]">{t("weeks")}</p>
                 <p className="mt-2 text-2xl font-bold">{formatNumber(payload.weeks.length, language)}</p>
               </div>
-              <div className="rounded-xl border border-slate-700 bg-slate-950 p-4">
-                <p className="text-xs uppercase text-slate-400">{t("incomeEntries")}</p>
+              <div className="rounded-xl border border-[#d9e4de] bg-white p-4">
+                <p className="text-xs uppercase text-[#536660]">{t("incomeEntries")}</p>
                 <p className="mt-2 text-2xl font-bold">{formatNumber(payload.finance.entries.length, language)}</p>
               </div>
-              <div className="rounded-xl border border-slate-700 bg-slate-950 p-4">
-                <p className="text-xs uppercase text-slate-400">{t("totalIncome")}</p>
+              <div className="rounded-xl border border-[#d9e4de] bg-white p-4">
+                <p className="text-xs uppercase text-[#536660]">{t("totalIncome")}</p>
                 <p className="mt-2 text-2xl font-bold">{formatMoney(payload.finance.total_income, language)}</p>
               </div>
             </div>
@@ -306,7 +306,7 @@ export function ExportView() {
                 type="button"
                 onClick={() => void handleExport("xlsx")}
                 disabled={activeFormat !== null}
-                className="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+                className="rounded-xl border border-[#b6c9bf] bg-white px-5 py-3 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "xlsx" ? t("loading") : t("exportExcel")}
               </button>
@@ -314,7 +314,7 @@ export function ExportView() {
                 type="button"
                 onClick={() => void handleExport("markdown")}
                 disabled={activeFormat !== null}
-                className="rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-400 disabled:opacity-60"
+                className="rounded-xl border border-[#b6c9bf] bg-white px-5 py-3 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "markdown" ? t("loading") : t("exportForAi")}
               </button>
@@ -322,7 +322,7 @@ export function ExportView() {
                 type="button"
                 onClick={() => void handleExport("json")}
                 disabled={activeFormat !== null}
-                className="rounded-xl bg-teal-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-teal-400 disabled:opacity-60"
+                className="rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "json" ? t("loading") : t("exportJsonBackup")}
               </button>
@@ -330,20 +330,20 @@ export function ExportView() {
                 type="button"
                 onClick={() => void handleExport("csv")}
                 disabled={activeFormat !== null}
-                className="rounded-xl border border-slate-500 px-5 py-3 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200 disabled:opacity-60"
+                className="rounded-xl border border-slate-500 px-5 py-3 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "csv" ? t("loading") : t("exportCsv")}
               </button>
             </div>
 
-            <div className="mt-8 border-t border-slate-700 pt-5">
+            <div className="mt-8 border-t border-[#d9e4de] pt-5">
               <h2 className="text-xl font-bold">{t("importData")}</h2>
-              <p className="mt-2 text-sm text-slate-300">
+              <p className="mt-2 text-sm text-[#536660]">
                 {t("importDescription")}
               </p>
 
               <div className="mt-4 flex flex-wrap gap-3">
-                <label className="flex items-center gap-2 rounded-xl border border-slate-600 px-4 py-3 text-sm">
+                <label className="flex items-center gap-2 rounded-xl border border-[#b6c9bf] px-4 py-3 text-sm">
                   <input
                     type="radio"
                     name="import-mode"
@@ -353,7 +353,7 @@ export function ExportView() {
                   />
                   {t("mergeUpsert")}
                 </label>
-                <label className="flex items-center gap-2 rounded-xl border border-slate-600 px-4 py-3 text-sm">
+                <label className="flex items-center gap-2 rounded-xl border border-[#b6c9bf] px-4 py-3 text-sm">
                   <input
                     type="radio"
                     name="import-mode"

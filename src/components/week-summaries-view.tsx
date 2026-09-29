@@ -89,12 +89,12 @@ export function WeekSummariesView() {
   }, [ordered, showEmptyWeeks]);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 text-slate-100 md:px-6 xl:px-8">
+    <main className="sp-page mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 md:px-6 xl:px-8">
       <div dir={isPersian ? "rtl" : "ltr"} className="contents">
-      <section className="mx-auto flex w-full max-w-[1700px] flex-col gap-4 rounded-3xl border border-slate-700 bg-slate-900/85 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <section className="mx-auto flex w-full max-w-[1700px] flex-col gap-4 rounded-3xl border border-[#d9e4de] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t("summaries")}</h1>
-          <p className="mt-2 text-sm text-slate-300">
+          <p className="mt-2 text-sm text-[#536660]">
             {t("summaryDescription")}
           </p>
         </div>
@@ -102,19 +102,19 @@ export function WeekSummariesView() {
           <LanguageToggle />
           <Link
             href="/finance"
-            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
+            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800"
           >
             {t("finance")}
           </Link>
           <Link
             href="/export"
-            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
+            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800"
           >
             {t("export")}
           </Link>
           <Link
             href="/"
-            className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
+            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800"
           >
             {t("backToPlanner")}
           </Link>
@@ -122,16 +122,16 @@ export function WeekSummariesView() {
       </section>
 
       {isLoading ? (
-        <p className="mx-auto w-full max-w-[1700px] text-slate-300">{t("loadingSummaries")}</p>
+        <p className="mx-auto w-full max-w-[1700px] text-[#536660]">{t("loadingSummaries")}</p>
       ) : null}
-      {error ? <p className="mx-auto w-full max-w-[1700px] text-rose-400">{error}</p> : null}
-      <section className="mx-auto flex w-full max-w-[1700px] flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
-        <label className="flex items-center gap-3 text-sm font-semibold text-slate-200">
+      {error ? <p role="alert" className="mx-auto w-full max-w-[1700px] text-rose-700">{error}</p> : null}
+      <section className="mx-auto flex w-full max-w-[1700px] flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d9e4de] bg-white p-4">
+        <label className="flex items-center gap-3 text-sm font-semibold text-[#172b29]">
           {t("monthsInSummary")}
           <select
             value={summaryMonths}
             onChange={(event) => setSummaryMonths(Number(event.target.value))}
-            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-teal-400"
+            className="rounded-xl border border-[#b6c9bf] bg-white px-3 py-2 text-sm text-[#172b29] outline-none focus:border-teal-700"
           >
             {MONTH_OPTIONS.map((months) => (
               <option key={months} value={months}>
@@ -141,7 +141,7 @@ export function WeekSummariesView() {
           </select>
         </label>
 
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-[#536660]">
           {t("showingLoadedWeeks", {
             visible: formatNumber(visibleSummaries.length, language),
             total: formatNumber(summaries.length, language),
@@ -151,7 +151,7 @@ export function WeekSummariesView() {
         <button
           type="button"
           onClick={() => setShowEmptyWeeks((prev) => !prev)}
-          className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-teal-400 hover:text-teal-200"
+          className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800"
         >
           {showEmptyWeeks ? t("hideEmptyWeeks") : t("showEmptyWeeks")}
         </button>
@@ -163,35 +163,35 @@ export function WeekSummariesView() {
             key={week.start_date}
             className={`rounded-2xl border p-4 shadow-sm ${
               week.is_current
-                ? "border-teal-500 bg-teal-950/30"
-                : "border-slate-700 bg-slate-900/80"
+                ? "border-teal-700 bg-[#e7f4ef]"
+                : "border-[#d9e4de] bg-white"
             }`}
           >
             <h2 className="text-lg font-semibold">
               {formatReadableShamsiWeekRange(week.start_date, week.end_date, language)}
               {week.is_current ? ` (${t("current")})` : ""}
             </h2>
-            <p className="mt-2 text-xs text-slate-300">
+            <p className="mt-2 text-xs text-[#536660]">
               {t("weeklyGoal")}: {week.weekly_goal || t("noGoal")}
             </p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-[#536660]">
               {t("weeklyNote")}: {week.weekly_note || t("noNote")}
             </p>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {activePlannerSections(week.planner_sections).map((section) => (
-                <div key={section.id} className="rounded-xl border border-slate-700 bg-slate-800/70 p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                <div key={section.id} className="rounded-xl border border-[#d9e4de] bg-[#f1f5f2]/70 p-3">
+                  <p className="text-xs uppercase tracking-wide text-[#536660]">
                     {section.label}
                   </p>
-                  <p className="mt-1 text-base font-semibold text-slate-100">
+                  <p className="mt-1 text-base font-semibold text-[#172b29]">
                     {formatDuration(week.totals.by_section_minutes[section.id], language)}
                   </p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-3 rounded-xl bg-teal-600 p-3 text-white">
+            <div className="mt-3 rounded-xl bg-teal-700 p-3 text-white">
               <p className="text-xs uppercase tracking-wide text-teal-100">{t("total")}</p>
               <p className="mt-1 text-base font-semibold">
                 {formatDuration(week.totals.week_total_minutes, language)}
@@ -204,17 +204,17 @@ export function WeekSummariesView() {
                   const details = week.details_by_section?.[section.id] ?? [];
                   if (details.length === 0) return null;
                   return (
-                    <div key={section.id} className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
-                      <p className="text-xs font-semibold uppercase text-slate-400">
+                    <div key={section.id} className="rounded-xl border border-[#d9e4de] bg-white p-3">
+                      <p className="text-xs font-semibold uppercase text-[#536660]">
                         {section.label} {t("sectionDetails")}
                       </p>
                       <div className="mt-2 space-y-2">
                         {details.map((detail) => (
                           <div
                             key={`${detail.date}-${section.id}`}
-                            className="border-t border-slate-800 pt-2 first:border-t-0 first:pt-0"
+                            className="border-t border-[#d9e4de] pt-2 first:border-t-0 first:pt-0"
                           >
-                            <p className="text-xs font-semibold text-slate-200">
+                            <p className="text-xs font-semibold text-[#172b29]">
                               {isPersian
                                 ? t(WEEKDAY_TRANSLATION_KEYS[detail.weekday_name] ?? "saturday")
                                 : detail.weekday_name}{" "}
@@ -222,12 +222,12 @@ export function WeekSummariesView() {
                               {formatDuration(detail.duration_minutes, language)}
                             </p>
                             {detail.goal ? (
-                              <p className="mt-1 text-xs text-slate-300">
+                              <p className="mt-1 text-xs text-[#536660]">
                                 {t("goal")}: {detail.goal}
                               </p>
                             ) : null}
                             {detail.note ? (
-                              <p className="mt-1 text-xs text-slate-400">
+                              <p className="mt-1 text-xs text-[#536660]">
                                 {t("note")}: {detail.note}
                               </p>
                             ) : null}

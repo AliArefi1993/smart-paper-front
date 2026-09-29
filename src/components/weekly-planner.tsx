@@ -56,10 +56,10 @@ const WEEKDAY_TRANSLATION_KEYS: Record<string, TranslationKey> = {
 
 const SECTION_THEME_SETUP: Record<SectionName, ThemeClasses> = {
   slot_1: {
-    container: "border-red-200 bg-red-50",
-    badge: "bg-red-600 text-white",
-    title: "text-red-800",
-    line: "border-red-200",
+    container: "border-teal-200 bg-teal-50",
+    badge: "bg-teal-700 text-white",
+    title: "text-teal-900",
+    line: "border-teal-200",
   },
   slot_2: {
     container: "border-blue-200 bg-blue-50",
@@ -229,7 +229,7 @@ function weekOffsetFromCurrent(week: WeekItem): number {
 
 export function WeeklyPlanner() {
   const { language, isPersian, t } = useLanguage();
-  const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
+  const [themeMode, setThemeMode] = useState<ThemeMode>("setup");
   const [weeks, setWeeks] = useState<WeekItem[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
   const [activeDayDate, setActiveDayDate] = useState<string>("");
@@ -256,19 +256,19 @@ export function WeeklyPlanner() {
   );
   const panelClass = isDark
     ? "border-slate-700 bg-slate-900/92 text-slate-100 shadow-slate-950/30"
-    : "border-slate-200 bg-white/95 text-slate-900 shadow-cyan-900/5";
+    : "border-[#d9e4de] bg-white text-[#172b29] shadow-slate-900/5";
   const mutedPanelClass = isDark
     ? "border-slate-700 bg-slate-800/78 text-slate-100"
-    : "border-slate-200 bg-slate-50 text-slate-900";
+    : "border-[#d9e4de] bg-[#f1f5f2] text-[#172b29]";
   const inputClass = isDark
     ? "w-full min-h-10 rounded-lg border border-slate-500 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-2 ring-transparent placeholder:text-slate-400 focus:border-teal-300 focus:ring-teal-400/60"
     : "w-full min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-2 ring-transparent placeholder:text-slate-500 focus:border-teal-600 focus:ring-teal-500/35";
   const pageClass = isDark
     ? "bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-100"
-    : "bg-gradient-to-b from-cyan-50 via-slate-50 to-emerald-50 text-slate-900";
+    : "bg-[#f7f8f5] text-[#172b29]";
   const navigationLinkClass = isDark
     ? "border-slate-600 bg-slate-800 text-slate-100 hover:border-teal-400 hover:bg-slate-700 hover:text-teal-200 active:bg-slate-700"
-    : "border-slate-300 bg-white text-slate-800 hover:border-teal-500 hover:text-teal-700 active:bg-slate-100";
+    : "border-[#d9e4de] bg-white text-[#172b29] hover:border-teal-700 hover:text-teal-800 active:bg-[#f1f5f2]";
   const segmentShellClass = isDark
     ? "border-slate-600 bg-slate-950/80"
     : "border-slate-300 bg-slate-100";
@@ -423,14 +423,16 @@ export function WeeklyPlanner() {
       );
       if (!rail || !selectedButton) return;
 
-      rail.scrollTo({
-        left: Math.max(0, selectedButton.offsetLeft - (rail.clientWidth - selectedButton.offsetWidth) / 2),
+      const railRect = rail.getBoundingClientRect();
+      const buttonRect = selectedButton.getBoundingClientRect();
+      rail.scrollBy({
+        left: buttonRect.left - railRect.left - (railRect.width - buttonRect.width) / 2,
         behavior: "auto",
       });
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [selectedWeekStart, weeks]);
+  }, [selectedWeekStart, weeks, isPersian]);
 
   const totals = useMemo(() => {
     if (!weekDetail) return null;
@@ -862,7 +864,7 @@ export function WeeklyPlanner() {
         type="button"
         onClick={() => void saveWeek()}
         disabled={!weekDetail || isSaving}
-        className={`rounded-xl bg-teal-600 font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400 ${
+        className={`rounded-xl bg-teal-700 font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400 ${
           compact ? "px-3 py-2 text-xs" : "px-4 py-2 text-sm"
         } ${className}`}
       >
@@ -885,7 +887,7 @@ export function WeeklyPlanner() {
   return (
     <main
       dir={isPersian ? "rtl" : "ltr"}
-      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${pageClass}`}
+      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${isDark ? "sp-dark" : "sp-light"} ${pageClass}`}
     >
       <section
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-5 shadow-sm backdrop-blur ${panelClass}`}
@@ -897,38 +899,39 @@ export function WeeklyPlanner() {
             <Link
               href="/summaries"
               onClick={handlePlannerNavigation}
-              className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
             >
               {t("summaries")}
             </Link>
             <Link
               href="/finance"
               onClick={handlePlannerNavigation}
-              className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
             >
               {t("finance")}
             </Link>
             <Link
               href="/export"
               onClick={handlePlannerNavigation}
-              className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
             >
               {t("export")}
             </Link>
             <Link
               href="/settings"
               onClick={handlePlannerNavigation}
-              className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${navigationLinkClass}`}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
             >
               {t("settings")}
             </Link>
-            <div className={`col-span-2 flex min-h-10 items-center gap-1 rounded-full border p-1 sm:col-span-1 ${segmentShellClass}`}>
+            <div className={`col-span-2 flex min-h-11 items-center gap-1 rounded-full border p-1 sm:col-span-1 ${segmentShellClass}`}>
             <button
               type="button"
               onClick={() => setThemeMode("setup")}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+              aria-pressed={themeMode === "setup"}
+              className={`min-h-9 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
                 themeMode === "setup"
-                  ? "bg-teal-600 text-white shadow-sm"
+                  ? "bg-teal-700 text-white shadow-sm"
                   : isDark
                     ? "text-slate-200 hover:bg-slate-700"
                     : "text-slate-700 hover:bg-white"
@@ -939,7 +942,8 @@ export function WeeklyPlanner() {
             <button
               type="button"
               onClick={() => setThemeMode("dark")}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+              aria-pressed={themeMode === "dark"}
+              className={`min-h-9 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
                 themeMode === "dark"
                   ? "bg-slate-100 text-slate-950 shadow-sm"
                   : isDark
@@ -991,12 +995,14 @@ export function WeeklyPlanner() {
                   type="button"
                   key={week.start_date}
                   data-selected-week={isSelected}
+                  aria-pressed={isSelected}
+                  aria-current={week.is_current ? "date" : undefined}
                   onClick={() => handleWeekSelect(week.start_date)}
-                  className={`min-h-16 min-w-40 rounded-xl border px-4 py-3 text-start text-xs transition md:min-w-0 ${
+                  className={`min-h-16 min-w-40 rounded-xl border px-4 py-3 text-start text-sm transition md:min-w-0 ${
                     isSelected
                       ? isDark
                         ? "border-teal-500 bg-teal-500 text-slate-950 shadow-lg shadow-teal-950/40"
-                        : "border-teal-600 bg-teal-600 text-white"
+                        : "border-teal-600 bg-teal-700 text-white"
                       : week.is_current
                         ? isDark
                           ? "border-amber-600 bg-amber-900/35 text-amber-100"
@@ -1006,10 +1012,11 @@ export function WeeklyPlanner() {
                           : "border-slate-300 bg-white text-slate-700 hover:border-teal-400 hover:text-teal-700"
                   }`}
                 >
-                  <span className="block text-sm font-bold">
-                    {formatWeekChoiceLabel(week)}
+                  <span className="flex items-center justify-between gap-2 text-sm font-bold">
+                    <span>{formatWeekChoiceLabel(week)}</span>
+                    {isSelected ? <span aria-hidden="true">✓</span> : null}
                   </span>
-                  <span className="mt-1 block text-[11px] leading-5 opacity-85">
+                  <span className="mt-1 block text-xs leading-5 opacity-85">
                     {formatCompactShamsiWeekRange(week.start_date, week.end_date, language)}
                   </span>
                 </button>
@@ -1047,7 +1054,7 @@ export function WeeklyPlanner() {
                     {formatDuration(totals.by_section_minutes[section.id], language)}
                   </span>
                 ))}
-                <span className="rounded-full bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white">
+                <span className="rounded-full bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white">
                   {t("total")}: {formatDuration(totals.week_total_minutes, language)}
                 </span>
               </>
@@ -1113,11 +1120,7 @@ export function WeeklyPlanner() {
             </article>
 
             <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-              <div
-                className={`-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden ${
-                  isPersian ? "flex-row-reverse" : ""
-                }`}
-              >
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
                 {weekDetail.days.map((day) => {
                   const isActiveDay = day.date === activeDate;
                   const dayHasContent = dayHasDetails(day);
@@ -1126,20 +1129,22 @@ export function WeeklyPlanner() {
                       key={`mobile-day-${day.date}`}
                       type="button"
                       onClick={() => setActiveDayDate(day.date)}
-                      className={`min-w-28 rounded-xl border px-3 py-2 text-start transition ${
+                      aria-pressed={isActiveDay}
+                      className={`min-h-14 min-w-28 rounded-xl border px-3 py-2 text-start transition ${
                         isActiveDay
                           ? isDark
                             ? "border-teal-400 bg-teal-500 text-slate-950"
-                            : "border-teal-600 bg-teal-600 text-white"
+                            : "border-teal-600 bg-teal-700 text-white"
                           : isDark
                             ? "border-slate-700 bg-slate-900 text-slate-200"
                             : "border-slate-200 bg-white text-slate-700"
                       }`}
                     >
-                      <span className="block text-xs font-bold">
-                        {t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday")}
+                      <span className="flex items-center justify-between gap-2 text-sm font-bold">
+                        <span>{t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday")}</span>
+                        {isActiveDay ? <span aria-hidden="true">✓</span> : null}
                       </span>
-                      <span className="mt-1 block text-[11px] opacity-80">
+                      <span className="mt-1 block text-xs opacity-80">
                         {formatDuration(dayTotalMinutes(day), language)}
                       </span>
                       <span
@@ -1153,6 +1158,9 @@ export function WeeklyPlanner() {
                               : "bg-slate-300"
                         }`}
                       />
+                      <span className="sr-only">
+                        {dayHasContent ? t("sectionDetails") : t("noNotesYet")}
+                      </span>
                     </button>
                   );
                 })}
@@ -1189,7 +1197,7 @@ export function WeeklyPlanner() {
                         </span>
                       </span>
                       <span className="flex shrink-0 flex-col items-end gap-1">
-                        <span className="rounded-full bg-teal-600 px-3 py-1 text-xs font-semibold text-white">
+                        <span className="rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white">
                           {formatDuration(dayTotal, language)}
                         </span>
                         <span className={`text-[11px] font-medium ${dayHasContent ? "text-emerald-500" : isDark ? "text-slate-400" : "text-slate-500"}`}>
@@ -1230,7 +1238,7 @@ export function WeeklyPlanner() {
                           <button
                             type="button"
                             onClick={() => openNewScheduleEntry(day)}
-                            className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-700"
+                            className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
                           >
                             + {t("addScheduleEntry")}
                           </button>
@@ -1263,7 +1271,7 @@ export function WeeklyPlanner() {
                                   }`}
                                   aria-label={`${t("editScheduleEntry")}, ${entry.start_time} ${entry.end_time}, ${entry.title}`}
                                 >
-                                  <span className="rounded-md bg-teal-600 px-2 py-1 text-xs font-bold text-white">
+                                  <span className="rounded-md bg-teal-700 px-2 py-1 text-xs font-bold text-white">
                                     {entry.start_time}-{entry.end_time}
                                   </span>
                                   <span className="min-w-0">
@@ -1449,7 +1457,7 @@ export function WeeklyPlanner() {
                 </div>
               </div>
             ))}
-            <div className="rounded-xl bg-teal-600 p-3 text-white">
+            <div className="rounded-xl bg-teal-700 p-3 text-white">
               <p className="text-xs uppercase tracking-wide text-teal-100">{t("total")}</p>
               <p className="mt-1 text-lg font-semibold">
                 {formatDuration(totals.week_total_minutes, language)}
@@ -1524,7 +1532,7 @@ export function WeeklyPlanner() {
                 type="button"
                 onClick={() => void saveCurrentWeekAsTemplate()}
                 disabled={!templateName.trim()}
-                className="min-h-10 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className="min-h-10 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 {t("saveAsTemplate")}
               </button>
@@ -1661,7 +1669,7 @@ export function WeeklyPlanner() {
               <button
                 type="button"
                 onClick={saveScheduleDraft}
-                className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
+                className="rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800"
               >
                 {t("save")}
               </button>
@@ -1705,7 +1713,7 @@ export function WeeklyPlanner() {
                 type="button"
                 onClick={() => void saveAndSwitchWeek()}
                 disabled={isSaving}
-                className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className="rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 {isSaving ? t("saving") : t("saveAndSwitch")}
               </button>
