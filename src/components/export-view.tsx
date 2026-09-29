@@ -252,7 +252,7 @@ export function ExportView() {
       <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("preparingExport")}</p> : null}
         {error ? <p role="alert" className="text-rose-700">{error}</p> : null}
-        {message ? <p role="status" className="text-teal-800">{message}</p> : null}
+        {message ? <p role="status" className="text-emerald-800">{message}</p> : null}
 
         {isLocked ? (
           <form

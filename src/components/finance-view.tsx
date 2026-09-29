@@ -310,7 +310,7 @@ export function FinanceView() {
 
       {isLoading ? <p className="mx-auto mt-6 w-full max-w-5xl text-[#536660]">{t("loading")}</p> : null}
       {error ? <p role="alert" className="mx-auto mt-3 w-full max-w-5xl text-rose-700">{error}</p> : null}
-      {message ? <p role="status" className="mx-auto mt-3 w-full max-w-5xl text-teal-800">{message}</p> : null}
+      {message ? <p role="status" className="mx-auto mt-3 w-full max-w-5xl text-emerald-800">{message}</p> : null}
 
       {!isLoading && isLocked ? (
         <section className="mx-auto mt-6 w-full max-w-md rounded-2xl border border-amber-300 bg-amber-50 p-5">

@@ -208,7 +208,7 @@ export function SettingsView() {
       <section className="mx-auto mt-6 w-full max-w-5xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("loadingSettings")}</p> : null}
         {error ? <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p> : null}
-        {message ? <p role="status" className="text-sm font-semibold text-teal-800">{message}</p> : null}
+        {message ? <p role="status" className="text-sm font-semibold text-emerald-800">{message}</p> : null}
 
         {!isLoading ? (
           <>
