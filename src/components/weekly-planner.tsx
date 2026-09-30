@@ -414,6 +414,22 @@ export function WeeklyPlanner() {
   }, [hasUnsavedChanges]);
 
   useEffect(() => {
+    function keepPageAtHorizontalOrigin() {
+      if (Math.abs(window.scrollX) > 1 || Math.abs(document.documentElement.scrollLeft) > 1) {
+        window.scrollTo(0, window.scrollY);
+      }
+    }
+
+    keepPageAtHorizontalOrigin();
+    window.addEventListener("pageshow", keepPageAtHorizontalOrigin);
+    window.addEventListener("scroll", keepPageAtHorizontalOrigin, { passive: true });
+    return () => {
+      window.removeEventListener("pageshow", keepPageAtHorizontalOrigin);
+      window.removeEventListener("scroll", keepPageAtHorizontalOrigin);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!selectedWeekStart || !weekRailRef.current) return;
 
     const frame = window.requestAnimationFrame(() => {
@@ -425,10 +441,8 @@ export function WeeklyPlanner() {
 
       const railRect = rail.getBoundingClientRect();
       const buttonRect = selectedButton.getBoundingClientRect();
-      rail.scrollBy({
-        left: buttonRect.left - railRect.left - (railRect.width - buttonRect.width) / 2,
-        behavior: "auto",
-      });
+      rail.scrollLeft += buttonRect.left - railRect.left - (railRect.width - buttonRect.width) / 2;
+      if (Math.abs(window.scrollX) > 1) window.scrollTo(0, window.scrollY);
     });
 
     return () => window.cancelAnimationFrame(frame);
@@ -864,7 +878,7 @@ export function WeeklyPlanner() {
         type="button"
         onClick={() => void saveWeek()}
         disabled={!weekDetail || isSaving}
-        className={`rounded-xl bg-teal-700 font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400 ${
+        className={`min-w-0 rounded-xl bg-teal-700 font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400 ${
           compact ? "px-3 py-2 text-xs" : "px-4 py-2 text-sm"
         } ${className}`}
       >
@@ -887,7 +901,7 @@ export function WeeklyPlanner() {
   return (
     <main
       dir={isPersian ? "rtl" : "ltr"}
-      className={`mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${isDark ? "sp-dark" : "sp-light"} ${pageClass}`}
+      className={`mx-auto flex min-h-screen w-full min-w-0 max-w-none flex-col gap-6 overflow-x-hidden px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${isDark ? "sp-dark" : "sp-light"} ${pageClass}`}
     >
       <section
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-5 shadow-sm backdrop-blur ${panelClass}`}
@@ -995,7 +1009,7 @@ export function WeeklyPlanner() {
         ) : (
           <div
             ref={weekRailRef}
-            className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:grid-cols-3 md:px-0 xl:grid-cols-5"
+            className="flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-1 md:grid md:grid-cols-3 xl:grid-cols-5"
           >
             {weeks.map((week) => {
               const isSelected = week.start_date === selectedWeekStart;
@@ -1129,7 +1143,7 @@ export function WeeklyPlanner() {
             </article>
 
             <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
+              <div className="flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-1 lg:hidden">
                 {weekDetail.days.map((day) => {
                   const isActiveDay = day.date === activeDate;
                   const dayHasContent = dayHasDetails(day);
@@ -1477,7 +1491,7 @@ export function WeeklyPlanner() {
       ) : null}
       {weekDetail ? (
         <div
-          className={`fixed inset-x-0 bottom-0 z-30 border-t px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl md:hidden ${
+          className={`fixed inset-x-0 bottom-0 z-30 w-screen max-w-full border-t px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl md:hidden ${
             isDark
               ? "border-slate-700 bg-slate-950/95"
               : "border-slate-200 bg-white/95"
@@ -1489,12 +1503,12 @@ export function WeeklyPlanner() {
             >
               {saveStatusText()}
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid min-w-0 grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => void saveAndGoToNextDay()}
                 disabled={!weekDetail || isSaving}
-                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                className={`min-w-0 rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   isDark
                     ? "border-slate-600 bg-slate-900 text-slate-100 hover:border-teal-400"
                     : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"

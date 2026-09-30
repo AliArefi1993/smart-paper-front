@@ -29,7 +29,6 @@ export function useLanguage() {
 
   useEffect(() => {
     document.documentElement.lang = language;
-    document.documentElement.dir = language === "fa" ? "rtl" : "ltr";
   }, [language]);
 
   const setLanguage = useCallback((nextLanguage: AppLanguage) => {

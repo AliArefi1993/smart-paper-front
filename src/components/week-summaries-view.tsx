@@ -89,8 +89,8 @@ export function WeekSummariesView() {
   }, [ordered, showEmptyWeeks]);
 
   return (
-    <main className="sp-page mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 md:px-6 xl:px-8">
-      <div dir={isPersian ? "rtl" : "ltr"} className="contents">
+    <main dir={isPersian ? "rtl" : "ltr"} className="sp-page mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 px-4 py-6 md:px-6 xl:px-8">
+      <div className="contents">
       <section className="mx-auto flex w-full max-w-[1700px] flex-col gap-4 rounded-3xl border border-[#d9e4de] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t("summaries")}</h1>
