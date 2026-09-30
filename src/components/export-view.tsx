@@ -11,6 +11,7 @@ import {
   type ExportFormat,
 } from "@/lib/export-store";
 import { unlockFinanceSession } from "@/lib/finance-store";
+import { validateLocalBackup } from "@/lib/local-import-safety";
 import { useLanguage } from "@/lib/use-language";
 import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
 
@@ -195,7 +196,13 @@ export function ExportView() {
     try {
       const raw = await file.text();
       const importedPayload = JSON.parse(raw) as ExportPayload;
-      if (importMode === "replace" && !window.confirm(t("replaceImportConfirm"))) {
+      if (isLocalDataMode) validateLocalBackup(importedPayload);
+      let importDetails = file.name;
+      if (Array.isArray(importedPayload?.weeks) && Array.isArray(importedPayload.finance?.entries)) {
+        importDetails += `\n${formatNumber(importedPayload.weeks.length, language)} ${t("weeks")}, ` +
+          `${formatNumber(importedPayload.finance.entries.length, language)} ${t("incomeEntries")}`;
+      }
+      if (importMode === "replace" && !window.confirm(`${importDetails}\n\n${t("replaceImportConfirm")}`)) {
         return;
       }
       const result = await importExportPayload(importedPayload, importMode);

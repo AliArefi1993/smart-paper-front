@@ -36,7 +36,7 @@ export async function getExportFile(format: ExportFormat): Promise<ExportFile> {
     const payload = await getLocalExportPayload();
     if (format === "json") {
       return {
-        filename: "smart-paper-export.json",
+        filename: `smart-paper-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
         mimeType: "application/json",
         content: JSON.stringify(payload, null, 2),
       };
