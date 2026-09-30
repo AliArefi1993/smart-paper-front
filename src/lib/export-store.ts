@@ -5,6 +5,7 @@ import {
   formatExportXlsx,
 } from "@/lib/export-format";
 import {
+  getLocalAiReportSource,
   getLocalExportPayload,
   importLocalExportPayload,
 } from "@/lib/local-store";
@@ -29,6 +30,13 @@ export async function getExportPayload(): Promise<ExportPayload> {
   return requestJson<ExportPayload>("/export/", {
     credentials: "include",
   });
+}
+
+export async function getAiReportSource(includeFinance: boolean): Promise<ExportPayload> {
+  if (isLocalStorageMode()) {
+    return includeFinance ? getLocalExportPayload() : getLocalAiReportSource();
+  }
+  return getExportPayload();
 }
 
 export async function getExportFile(format: ExportFormat): Promise<ExportFile> {

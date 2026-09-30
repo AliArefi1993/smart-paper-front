@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type ChangeEvent, useEffect, useState } from "react";
+import { AiReportPanel } from "@/components/ai-report-panel";
 import { LanguageToggle } from "@/components/language-toggle";
 import { formatMoney, formatNumber } from "@/lib/formatters";
 import {
@@ -10,7 +11,8 @@ import {
   importExportPayload,
   type ExportFormat,
 } from "@/lib/export-store";
-import { unlockFinanceSession } from "@/lib/finance-store";
+import { checkFinanceSession, unlockFinanceSession } from "@/lib/finance-store";
+import { shareOrDownloadFile } from "@/lib/file-share";
 import { validateLocalBackup } from "@/lib/local-import-safety";
 import { useLanguage } from "@/lib/use-language";
 import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
@@ -20,67 +22,6 @@ const usesDefaultLocalPin = isLocalDataMode && !process.env.NEXT_PUBLIC_FINANCE_
 
 function isForbidden(errorValue: unknown): boolean {
   return errorValue instanceof Response && errorValue.status === 403;
-}
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  const buffer = await blob.arrayBuffer();
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 0x8000;
-
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.subarray(index, index + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-
-  return btoa(binary);
-}
-
-async function saveNativeFile(filename: string, blob: Blob) {
-  const [{ Directory, Filesystem }, { Share }] = await Promise.all([
-    import("@capacitor/filesystem"),
-    import("@capacitor/share"),
-  ]);
-  const savedFile = await Filesystem.writeFile({
-    path: filename,
-    data: await blobToBase64(blob),
-    directory: Directory.Cache,
-    recursive: true,
-  });
-
-  await Share.share({
-    title: filename,
-    text: filename,
-    url: savedFile.uri,
-    dialogTitle: filename,
-  });
-}
-
-async function saveFile(filename: string, mimeType: string, content: BlobPart) {
-  const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
-  const { Capacitor } = await import("@capacitor/core");
-
-  if (Capacitor.isNativePlatform()) {
-    await saveNativeFile(filename, blob);
-    return;
-  }
-
-  const file = new File([blob], filename, { type: mimeType });
-  const shareData = { files: [file], title: filename };
-
-  if (navigator.canShare?.(shareData)) {
-    await navigator.share(shareData);
-    return;
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 export function ExportView() {
@@ -133,6 +74,34 @@ export function ExportView() {
     };
   }, [t]);
 
+  useEffect(() => {
+    if (!payload) return;
+    let active = true;
+    async function checkUnlock() {
+      try {
+        const response = await checkFinanceSession();
+        if (active && response.status === 403) {
+          setPayload(null);
+          setIsLocked(true);
+        }
+      } catch {
+        // A temporary network failure should not erase the current preview.
+      }
+    }
+    const checkWhenVisible = () => {
+      if (document.visibilityState === "visible") void checkUnlock();
+    };
+    const interval = window.setInterval(() => void checkUnlock(), 30_000);
+    window.addEventListener("focus", checkUnlock);
+    document.addEventListener("visibilitychange", checkWhenVisible);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", checkUnlock);
+      document.removeEventListener("visibilitychange", checkWhenVisible);
+    };
+  }, [payload]);
+
   async function handleUnlock() {
     if (!pinInput.trim()) {
       setError(t("enterPin"));
@@ -166,7 +135,7 @@ export function ExportView() {
     setMessage("");
     try {
       const file = await getExportFile(format);
-      await saveFile(file.filename, file.mimeType, file.content);
+      await shareOrDownloadFile(file.filename, file.mimeType, file.content);
       setMessage(`${file.filename} ${t("exportReady")}`);
     } catch (exportError) {
       if (isForbidden(exportError)) {
@@ -256,6 +225,11 @@ export function ExportView() {
         </div>
       </section>
 
+      {isLocalDataMode ? <AiReportPanel financeSource={payload} onFinanceExpired={() => {
+        setPayload(null);
+        setIsLocked(true);
+      }} /> : null}
+
       <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("preparingExport")}</p> : null}
         {error ? <p role="alert" className="text-rose-700">{error}</p> : null}
@@ -263,6 +237,7 @@ export function ExportView() {
 
         {isLocked ? (
           <form
+            id="export-finance-unlock"
             className="max-w-sm"
             onSubmit={(event) => {
               event.preventDefault();
@@ -317,14 +292,14 @@ export function ExportView() {
               >
                 {activeFormat === "xlsx" ? t("loading") : t("exportExcel")}
               </button>
-              <button
+              {!isLocalDataMode ? <button
                 type="button"
                 onClick={() => void handleExport("markdown")}
                 disabled={activeFormat !== null}
                 className="rounded-xl border border-[#b6c9bf] bg-white px-5 py-3 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "markdown" ? t("loading") : t("exportForAi")}
-              </button>
+              </button> : null}
               <button
                 type="button"
                 onClick={() => void handleExport("json")}

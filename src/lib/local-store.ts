@@ -525,6 +525,19 @@ export async function getLocalExportPayload(): Promise<ExportPayload> {
   };
 }
 
+export async function getLocalAiReportSource(): Promise<ExportPayload> {
+  const plannerSections = getStoredPlannerSections();
+  return {
+    exported_at: new Date().toISOString(),
+    planner_sections: plannerSections,
+    weeks: Object.values(getStoredWeeks()).sort((a, b) =>
+      a.start_date.localeCompare(b.start_date),
+    ),
+    // Finance is read only after the user unlocks it and selects finance fields.
+    finance: { goal_amount: 0, total_income: 0, remaining_amount: 0, progress_percent: 0, entries: [] },
+  };
+}
+
 export async function importLocalExportPayload(
   payload: ExportPayload,
   mode: ImportMode,
