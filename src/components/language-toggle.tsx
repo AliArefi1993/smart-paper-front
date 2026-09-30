@@ -12,7 +12,7 @@ export function LanguageToggle({ tone = "light" }: LanguageToggleProps) {
 
   return (
     <label
-      className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
+      className={`flex min-h-11 min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
         isDark
           ? "border-slate-600 bg-slate-800 text-slate-100"
           : "border-slate-300 bg-white text-slate-800"
@@ -22,7 +22,7 @@ export function LanguageToggle({ tone = "light" }: LanguageToggleProps) {
       <select
         value={language}
         onChange={(event) => setLanguage(event.target.value === "fa" ? "fa" : "en")}
-        className={`min-h-9 rounded-lg border px-2 py-1 text-sm outline-none focus:border-teal-700 ${
+        className={`min-h-9 min-w-0 rounded-lg border px-2 py-1 text-sm outline-none focus:border-teal-700 ${
           isDark
             ? "border-slate-600 bg-slate-950 text-slate-100"
             : "border-slate-300 bg-slate-50 text-slate-900"

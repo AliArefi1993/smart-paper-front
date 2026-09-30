@@ -894,8 +894,10 @@ export function WeeklyPlanner() {
       >
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">{t("weeklySmartPaper")}</h1>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-            <LanguageToggle tone={isDark ? "dark" : "light"} />
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <div className="col-span-2 min-w-0 sm:col-span-1">
+              <LanguageToggle tone={isDark ? "dark" : "light"} />
+            </div>
             <Link
               href="/timer"
               onClick={handlePlannerNavigation}
@@ -927,7 +929,7 @@ export function WeeklyPlanner() {
             <Link
               href="/settings"
               onClick={handlePlannerNavigation}
-              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
+              className={`col-span-2 min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition sm:col-span-1 ${navigationLinkClass}`}
             >
               {t("settings")}
             </Link>

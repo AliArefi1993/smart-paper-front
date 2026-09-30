@@ -13,8 +13,8 @@ docker run --rm \
   -v "$repo_root":/app \
   -v smart-paper-front-node-modules:/app/node_modules \
   -w /app \
-  node:24-alpine \
-  sh -lc 'npm run build && npx cap sync android'
+  node:24-bookworm \
+  bash -lc 'npm ci && npm run build && npx cap sync android'
 
 docker run --rm \
   --platform linux/amd64 \
