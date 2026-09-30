@@ -1,4 +1,5 @@
 type StorageWriter = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+import { validateIdeaNotes } from "./idea-notes.ts";
 
 export function parseStoredJson<T>(raw: string | null, fallback: T): T {
   if (raw === null) return fallback;
@@ -51,10 +52,11 @@ export function validateLocalBackup(payload: unknown): void {
     payload.schema_version !== undefined &&
     (!Number.isInteger(payload.schema_version) ||
       (payload.schema_version as number) < 1 ||
-      (payload.schema_version as number) > 4)
+      (payload.schema_version as number) > 5)
   ) {
     throw new Error("This backup version is not supported by this app.");
   }
+  if (payload.idea_notes !== undefined) validateIdeaNotes(payload.idea_notes);
 
   const starts = new Set<string>();
   for (const week of payload.weeks) {

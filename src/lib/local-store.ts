@@ -20,6 +20,7 @@ import {
   normalizeWeekDetail,
 } from "@/lib/planner-sections";
 import { commitStorageChanges, parseStoredJson, validateLocalBackup } from "@/lib/local-import-safety";
+import { IDEA_NOTES_KEY, readIdeaNotes, restoreIdeaNotes } from "@/lib/idea-notes";
 
 const WEEKDAY_NAMES = [
   "Saturday",
@@ -516,10 +517,11 @@ export async function getLocalExportPayload(): Promise<ExportPayload> {
     a.start_date < b.start_date ? -1 : 1,
   );
   return {
-    schema_version: 4,
+    schema_version: 5,
     exported_at: new Date().toISOString(),
     planner_sections: plannerSections,
     week_templates: getStoredWeekTemplates(),
+    idea_notes: readIdeaNotes(requireBrowserStorage()),
     weeks,
     finance: formatFinance(getStoredFinance()),
   };
@@ -558,6 +560,11 @@ export async function importLocalExportPayload(
     : mode === "replace"
       ? []
       : getStoredWeekTemplates();
+  const ideaNotes = restoreIdeaNotes(
+    mode === "merge" ? readIdeaNotes(requireBrowserStorage()) : [],
+    payload.idea_notes,
+    mode,
+  );
   const weeks: StoredWeeks = mode === "replace" ? {} : { ...getStoredWeeks() };
   const activeSections = plannerSections.filter((section) => section.active).map((section) => section.id);
   for (const importedWeek of payload.weeks) {
@@ -613,6 +620,7 @@ export async function importLocalExportPayload(
     [WEEK_TEMPLATES_KEY]: JSON.stringify(templates),
     [WEEKS_KEY]: JSON.stringify(weeks),
     [FINANCE_KEY]: JSON.stringify(finance),
+    [IDEA_NOTES_KEY]: JSON.stringify(ideaNotes),
   });
 
   return {
@@ -621,10 +629,11 @@ export async function importLocalExportPayload(
     income_entries_imported: importedEntries.length,
     finance_goal_updated: financeGoalUpdated,
     payload: {
-      schema_version: 4,
+      schema_version: 5,
       exported_at: new Date().toISOString(),
       planner_sections: plannerSections,
       week_templates: templates,
+      idea_notes: ideaNotes,
       weeks: Object.values(weeks).sort((a, b) => a.start_date.localeCompare(b.start_date)),
       finance: formatFinance(finance),
     },

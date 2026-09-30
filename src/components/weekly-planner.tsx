@@ -913,6 +913,13 @@ export function WeeklyPlanner() {
               <LanguageToggle tone={isDark ? "dark" : "light"} />
             </div>
             <Link
+              href="/ideas"
+              onClick={handlePlannerNavigation}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
+            >
+              {t("ideasTitle")}
+            </Link>
+            <Link
               href="/timer"
               onClick={handlePlannerNavigation}
               className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}

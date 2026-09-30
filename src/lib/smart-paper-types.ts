@@ -146,6 +146,7 @@ export type ExportPayload = {
   exported_at: string;
   planner_sections?: PlannerSection[];
   week_templates?: WeekTemplate[];
+  idea_notes?: import("@/lib/idea-notes").IdeaNote[];
   weeks: WeekDetail[];
   finance: FinancePayload;
 };

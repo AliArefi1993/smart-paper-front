@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Smart Paper Weekly Planner",
-  description: "Track weekly plans from Saturday to Friday",
+  title: "Smart Paper",
+  description: "Plan your weeks and give your ideas room to grow",
 };
 
 export default function RootLayout({

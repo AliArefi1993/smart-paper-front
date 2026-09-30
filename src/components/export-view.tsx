@@ -169,7 +169,8 @@ export function ExportView() {
       let importDetails = file.name;
       if (Array.isArray(importedPayload?.weeks) && Array.isArray(importedPayload.finance?.entries)) {
         importDetails += `\n${formatNumber(importedPayload.weeks.length, language)} ${t("weeks")}, ` +
-          `${formatNumber(importedPayload.finance.entries.length, language)} ${t("incomeEntries")}`;
+          `${formatNumber(importedPayload.finance.entries.length, language)} ${t("incomeEntries")}, ` +
+          `${formatNumber(importedPayload.idea_notes?.length ?? 0, language)} ${t("ideasTitle")}`;
       }
       if (importMode === "replace" && !window.confirm(`${importDetails}\n\n${t("replaceImportConfirm")}`)) {
         return;
