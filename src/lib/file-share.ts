@@ -36,8 +36,13 @@ export async function shareOrDownloadFile(filename: string, mimeType: string, co
   const file = new File([blob], filename, { type: mimeType });
   const shareData = { files: [file], title: filename };
   if (navigator.canShare?.(shareData)) {
-    await navigator.share(shareData);
-    return "shared";
+    try {
+      await navigator.share(shareData);
+      return "shared";
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      // Some browsers advertise file sharing but deny the chooser at runtime.
+    }
   }
 
   const url = URL.createObjectURL(blob);
