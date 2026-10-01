@@ -47,6 +47,7 @@ cd smart-paper-front
 
 ## Component And UX Conventions
 
+- Before editing a user-visible screen, interaction, copy, or flow, read the ready design handoff in the team repository's `design/` directory and its linked editable design artifact. If none exists for the requested change, create one with Designer first under the root `AGENTS.md` workflow. Compare the built result against the handoff in English and Persian.
 - Existing screens are React client components with local React state.
 - Keep frontend code easy for AI and humans to read.
 - Prefer simple component structure, clear names, and small focused files.
