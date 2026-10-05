@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
+import { AppearanceToggle } from "@/components/appearance-toggle";
 import {
   TIMER_STORAGE_KEY,
   advanceTimerPhase,
@@ -118,6 +119,7 @@ export function FocusTimer() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <LanguageToggle />
+            <AppearanceToggle />
             <Link href="/" className="inline-flex min-h-11 items-center rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800">
               {t("backToPlanner")}
             </Link>

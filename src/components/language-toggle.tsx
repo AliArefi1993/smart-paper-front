@@ -1,6 +1,7 @@
 "use client";
 
 import { useLanguage } from "@/lib/use-language";
+import { useTheme } from "@/lib/use-theme";
 
 type LanguageToggleProps = {
   tone?: "dark" | "light";
@@ -8,7 +9,8 @@ type LanguageToggleProps = {
 
 export function LanguageToggle({ tone = "light" }: LanguageToggleProps) {
   const { language, setLanguage, t } = useLanguage();
-  const isDark = tone === "dark";
+  const theme = useTheme();
+  const isDark = tone === "dark" || theme === "dark";
 
   return (
     <label

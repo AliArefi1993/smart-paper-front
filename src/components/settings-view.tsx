@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
+import { AppearanceToggle } from "@/components/appearance-toggle";
 import {
   getMorningNotificationSettings,
   saveMorningNotificationSettings,
@@ -188,6 +189,7 @@ export function SettingsView() {
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
+          <AppearanceToggle />
           <Link
             href="/"
             onClick={handleSettingsNavigation}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { GrowingTextarea } from "@/components/growing-textarea";
+import { AppearanceToggle } from "@/components/appearance-toggle";
 import { LanguageToggle } from "@/components/language-toggle";
 import {
   formatCompactShamsiWeekRange,
@@ -25,6 +26,7 @@ import {
 import { syncMorningPlanNotification } from "@/lib/notifications";
 import type { TranslationKey } from "@/lib/i18n";
 import { useLanguage } from "@/lib/use-language";
+import { useTheme } from "@/lib/use-theme";
 import type {
   DayData,
   PlannerSection,
@@ -35,8 +37,6 @@ import type {
   WeekTemplate,
   WeekTotals,
 } from "@/lib/smart-paper-types";
-
-type ThemeMode = "setup" | "dark";
 
 type ThemeClasses = {
   container: string;
@@ -236,7 +236,7 @@ function weekOffsetFromCurrent(week: WeekItem): number {
 
 export function WeeklyPlanner() {
   const { language, isPersian, t } = useLanguage();
-  const [themeMode, setThemeMode] = useState<ThemeMode>("setup");
+  const themeMode = useTheme();
   const [weeks, setWeeks] = useState<WeekItem[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
   const [activeDayDate, setActiveDayDate] = useState<string>("");
@@ -284,9 +284,6 @@ export function WeeklyPlanner() {
   const navigationLinkClass = isDark
     ? "border-slate-600 bg-slate-800 text-slate-100 hover:border-teal-400 hover:bg-slate-700 hover:text-teal-200 active:bg-slate-700"
     : "border-[#d9e4de] bg-white text-[#172b29] hover:border-teal-700 hover:text-teal-800 active:bg-[#f1f5f2]";
-  const segmentShellClass = isDark
-    ? "border-slate-600 bg-slate-950/80"
-    : "border-slate-300 bg-slate-100";
 
   function formatWeekChoiceLabel(week: WeekItem): string {
     const offset = weekOffsetFromCurrent(week);
@@ -1028,36 +1025,7 @@ export function WeeklyPlanner() {
             >
               {t("settings")}
             </Link>
-            <div className={`col-span-2 flex min-h-11 items-center gap-1 rounded-full border p-1 sm:col-span-1 ${segmentShellClass}`}>
-            <button
-              type="button"
-              onClick={() => setThemeMode("setup")}
-              aria-pressed={themeMode === "setup"}
-              className={`min-h-9 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
-                themeMode === "setup"
-                  ? "bg-teal-700 text-white shadow-sm"
-                  : isDark
-                    ? "text-slate-200 hover:bg-slate-700"
-                    : "text-slate-700 hover:bg-white"
-              }`}
-            >
-              {t("focusMode")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setThemeMode("dark")}
-              aria-pressed={themeMode === "dark"}
-              className={`min-h-9 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
-                themeMode === "dark"
-                  ? "bg-slate-100 text-slate-950 shadow-sm"
-                  : isDark
-                    ? "text-slate-200 hover:bg-slate-700"
-                    : "text-slate-700 hover:bg-white"
-              }`}
-            >
-              {t("darkMode")}
-            </button>
-            </div>
+            <AppearanceToggle />
           </div>
         </div>
         <p className={`mt-2 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>

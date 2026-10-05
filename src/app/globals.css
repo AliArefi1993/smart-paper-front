@@ -79,6 +79,172 @@ textarea:focus-visible {
   color-scheme: light;
 }
 
+.sp-appearance-toggle {
+  border-color: #b6c9bf;
+  background: #f1f5f2;
+  color: #172b29;
+}
+
+.sp-appearance-toggle button[aria-pressed="true"] {
+  background: #0f766e;
+  color: white;
+  box-shadow: 0 1px 3px #172b2926;
+}
+
+.sp-appearance-toggle button[aria-pressed="false"]:hover {
+  background: white;
+}
+
+html.sp-dark {
+  --background: #101b1b;
+  --foreground: #eef5f1;
+  --surface: #1b2b29;
+  --surface-muted: #243532;
+  --border: #3b5550;
+  --muted-foreground: #b6c8c2;
+  --primary: #72dbcb;
+  --primary-soft: #243e39;
+  color-scheme: dark;
+}
+
+html.sp-dark .sp-page {
+  color-scheme: dark;
+}
+
+/* The Planner's server-rendered light classes wait for its saved choice to hydrate. */
+html.sp-dark main.sp-light {
+  visibility: hidden;
+}
+
+html.sp-dark :focus-visible {
+  outline: 3px solid #f5c66f;
+  outline-offset: 3px;
+}
+
+html.sp-dark .sp-appearance-toggle {
+  border-color: var(--border);
+  background: #101b1b;
+  color: var(--foreground);
+}
+
+html.sp-dark .sp-appearance-toggle button[aria-pressed="true"] {
+  background: #72dbcb;
+  color: #092522;
+}
+
+html.sp-dark .sp-appearance-toggle button[aria-pressed="false"]:hover {
+  background: #30443f;
+}
+
+/* Existing non-Planner routes use fixed Tailwind colors. Keep their dark roles together. */
+html.sp-dark .sp-page :is(
+  [class~="bg-white"],
+  [class~="bg-white/80"]
+) {
+  background-color: var(--surface);
+}
+
+html.sp-dark .sp-page :is(
+  [class~="bg-[#f1f5f2]"],
+  [class~="bg-[#f1f5f2]/70"],
+  [class~="bg-[#e7f4ef]"],
+  [class~="bg-[#d9e4de]"]
+) {
+  background-color: var(--surface-muted);
+}
+
+html.sp-dark .sp-page :is(
+  [class~="bg-[#fffaf0]"],
+  [class~="bg-amber-50"]
+) {
+  background-color: #453922;
+}
+
+html.sp-dark .sp-page [class~="bg-rose-50"] {
+  background-color: #472a2b;
+}
+
+html.sp-dark .sp-page [class~="from-[#ecf8f1]"] {
+  background-image: linear-gradient(to bottom, #243e39, #1b2b29);
+}
+
+html.sp-dark .sp-page :is(
+  [class~="border-[#d9e4de]"],
+  [class~="border-[#b6c9bf]"],
+  [class~="border-[#badbd0]"],
+  [class~="border-[#c9ded6]"],
+  [class~="border-[#b6cfc0]"],
+  [class~="border-[#bfd3c7]"],
+  [class~="border-[#e4d8ba]"],
+  [class~="border-teal-200"]
+) {
+  border-color: var(--border);
+}
+
+html.sp-dark .sp-page :is(
+  [class~="text-[#172b29]"],
+  [class~="text-[#163c36]"],
+  [class~="text-[#16443e]"],
+  [class~="text-[#173c36]"]
+) {
+  color: var(--foreground);
+}
+
+html.sp-dark .sp-page :is(
+  [class~="text-[#536660]"],
+  [class~="text-[#38534b]"],
+  [class~="text-[#6a8178]"]
+) {
+  color: var(--muted-foreground);
+}
+
+html.sp-dark .sp-page :is(
+  [class~="text-[#125b53]"],
+  [class~="text-teal-700"],
+  [class~="text-teal-800"]
+) {
+  color: #72dbcb;
+}
+
+html.sp-dark .sp-page :is(
+  [class~="text-amber-900"],
+  [class~="text-[#825e25]"]
+) {
+  color: #f5d494;
+}
+
+html.sp-dark .sp-page :is(
+  [class~="text-rose-700"],
+  [class~="text-rose-800"],
+  [class~="text-red-700"]
+) {
+  color: #ffb6bc;
+}
+
+html.sp-dark .sp-page [class~="text-emerald-800"] {
+  color: #a9e8bc;
+}
+
+html.sp-dark .sp-page :is(input, textarea, select) {
+  color-scheme: dark;
+}
+
+html.sp-dark .sp-page [class~="placeholder:text-[#6a8178]"]::placeholder {
+  color: var(--muted-foreground);
+}
+
+html.sp-dark .sp-page [class~="hover:bg-[#e7f4ef]"]:hover {
+  background-color: #30443f;
+}
+
+html.sp-dark .sp-page [class~="hover:text-teal-800"]:hover {
+  color: #a3f0e2;
+}
+
+html.sp-dark .sp-page [class~="hover:bg-rose-50"]:hover {
+  background-color: #63373a;
+}
+
 [dir="rtl"] {
   font-family:
     Vazirmatn,

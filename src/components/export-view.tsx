@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { AiReportPanel } from "@/components/ai-report-panel";
 import { LanguageToggle } from "@/components/language-toggle";
+import { AppearanceToggle } from "@/components/appearance-toggle";
 import { formatMoney, formatNumber } from "@/lib/formatters";
 import {
   getExportFile,
@@ -211,6 +212,7 @@ export function ExportView() {
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
+          <AppearanceToggle />
           <Link
             href="/finance"
             className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800"

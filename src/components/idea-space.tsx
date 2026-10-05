@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
+import { AppearanceToggle } from "@/components/appearance-toggle";
 import { dailyIdeaNote, readIdeaNotes, writeIdeaNotes, type IdeaNote } from "@/lib/idea-notes";
 import { useLanguage } from "@/lib/use-language";
 
@@ -136,7 +137,7 @@ export function IdeaSpace() {
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-800">Smart Paper</p>
             <h1 className="mt-1 text-3xl font-bold text-[#163c36]">{t("ideasTitle")}</h1>
           </div>
-          <div className="flex flex-wrap gap-2"><LanguageToggle /><Link href="/" className={smallButton}>{t("backToPlanner")}</Link></div>
+          <div className="flex flex-wrap gap-2"><LanguageToggle /><AppearanceToggle /><Link href="/" className={smallButton}>{t("backToPlanner")}</Link></div>
         </header>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#536660]">{t("ideasIntro")}</p>
 
