@@ -21,6 +21,7 @@
 
 # production
 /build
+android/.kotlin/
 *.apk
 *.jks
 android/keystore.properties

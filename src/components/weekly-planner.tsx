@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
+import { GrowingTextarea } from "@/components/growing-textarea";
 import { LanguageToggle } from "@/components/language-toggle";
 import {
   formatCompactShamsiWeekRange,
@@ -206,6 +207,12 @@ type ScheduleDraft = {
   section_id: SectionName | "";
 };
 
+type WritingView = {
+  dayDate: string;
+  sectionId: SectionName;
+  field: "goal" | "note";
+};
+
 function parseIsoDate(isoDate: string): Date {
   const [year, month, day] = isoDate.split("-").map(Number);
   return new Date(year, month - 1, day);
@@ -242,12 +249,20 @@ export function WeeklyPlanner() {
   const [isLoadingWeeks, setIsLoadingWeeks] = useState(true);
   const [isLoadingWeek, setIsLoadingWeek] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [openSection, setOpenSection] = useState<{ dayDate: string; sectionId: SectionName } | null>(null);
+  const [writingView, setWritingView] = useState<WritingView | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft | null>(null);
   const [scheduleError, setScheduleError] = useState("");
   const weekRailRef = useRef<HTMLDivElement>(null);
+  const sectionButtonsRef = useRef<Record<string, HTMLButtonElement | null>>({});
+  const writingTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const writingDoneRef = useRef<HTMLButtonElement | null>(null);
+  const writingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editRevisionRef = useRef(0);
   const isDark = themeMode === "dark";
   const sectionTheme = isDark ? SECTION_THEME_DARK : SECTION_THEME_SETUP;
   const activeSections = useMemo(
@@ -287,6 +302,7 @@ export function WeeklyPlanner() {
   async function fetchWeek(startDate: string) {
     setMessage("");
     setError("");
+    setSaveFailed(false);
     try {
       const payload = await getWeek(startDate);
       setPlannerSections(payload.planner_sections);
@@ -308,28 +324,34 @@ export function WeeklyPlanner() {
   function loadWeek(startDate: string): void {
     setSelectedWeekStart(startDate);
     setActiveDayDate("");
+    setOpenSection(null);
+    setWritingView(null);
     setPendingWeekStart(null);
     setIsLoadingWeek(true);
     void fetchWeek(startDate);
   }
 
   async function saveWeek(): Promise<boolean> {
-    if (!weekDetail) return false;
+    if (!weekDetail || isSaving) return false;
 
+    const savingRevision = editRevisionRef.current;
     setIsSaving(true);
+    setSaveFailed(false);
     setMessage("");
     setError("");
     try {
       const payload = await saveWeekData(weekDetail);
-      setWeekDetail(payload);
+      const noNewEdits = editRevisionRef.current === savingRevision;
+      if (noNewEdits) setWeekDetail(payload);
       void syncMorningPlanNotification(payload, {
         title: t("todayPlan"),
         fallbackBody: t("notificationDescription"),
       });
-      setHasUnsavedChanges(false);
-      setMessage(t("savedSuccessfully"));
-      return true;
+      setHasUnsavedChanges(!noNewEdits);
+      setMessage(noNewEdits ? t("savedSuccessfully") : "");
+      return noNewEdits;
     } catch (saveError) {
+      setSaveFailed(true);
       setError(saveError instanceof Error ? saveError.message : t("saveWeek"));
       return false;
     } finally {
@@ -347,12 +369,60 @@ export function WeeklyPlanner() {
   function handleTextareaEnterToSave(
     event: KeyboardEvent<HTMLTextAreaElement>,
   ): void {
-    if (event.key !== "Enter") return;
-    if (event.shiftKey) return;
+    if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
     event.preventDefault();
     if (isSaving) return;
     void saveWeek();
   }
+
+  function markChanged(): void {
+    editRevisionRef.current += 1;
+    setHasUnsavedChanges(true);
+    setSaveFailed(false);
+    setError("");
+  }
+
+  function toggleSection(dayDate: string, sectionId: SectionName): void {
+    const wasOpen = openSection?.dayDate === dayDate && openSection.sectionId === sectionId;
+    setOpenSection(wasOpen ? null : { dayDate, sectionId });
+    if (wasOpen) return;
+    requestAnimationFrame(() => {
+      const button = sectionButtonsRef.current[`${dayDate}-${sectionId}`];
+      button?.scrollIntoView({
+        block: "start",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+      });
+      button?.focus({ preventScroll: true });
+    });
+  }
+
+  function openWritingView(view: WritingView, trigger: HTMLButtonElement): void {
+    writingTriggerRef.current = trigger;
+    setWritingView(view);
+  }
+
+  function closeWritingView(): void {
+    setWritingView(null);
+    requestAnimationFrame(() => writingTriggerRef.current?.focus({ preventScroll: true }));
+  }
+
+  function handleWritingKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeWritingView();
+    } else if (event.key === "Tab") {
+      const atDone = document.activeElement === writingDoneRef.current;
+      const atText = document.activeElement === writingTextareaRef.current;
+      if ((event.shiftKey && atDone) || (!event.shiftKey && atText)) {
+        event.preventDefault();
+        (atDone ? writingTextareaRef : writingDoneRef).current?.focus();
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (writingView) writingTextareaRef.current?.focus();
+  }, [writingView]);
 
   useEffect(() => {
     let cancelled = false;
@@ -480,7 +550,7 @@ export function WeeklyPlanner() {
 
   function updateDuration(dayDate: string, section: SectionName, value: number): void {
     const nextDuration = Number.isFinite(value) ? Math.max(0, value) : 0;
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) => {
       if (!previous) return previous;
 
@@ -518,7 +588,7 @@ export function WeeklyPlanner() {
   }
 
   function updateNote(dayDate: string, section: SectionName, note: string): void {
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) => {
       if (!previous) return previous;
 
@@ -544,7 +614,7 @@ export function WeeklyPlanner() {
   }
 
   function updateDayNote(dayDate: string, dayNote: string): void {
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) => {
       if (!previous) return previous;
 
@@ -558,7 +628,7 @@ export function WeeklyPlanner() {
   }
 
   function updateSectionGoal(dayDate: string, section: SectionName, goal: string): void {
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) => {
       if (!previous) return previous;
 
@@ -584,7 +654,7 @@ export function WeeklyPlanner() {
   }
 
   function updateWeeklyGoal(goal: string): void {
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) => {
       if (!previous) return previous;
       return {
@@ -595,7 +665,7 @@ export function WeeklyPlanner() {
   }
 
   function updateWeeklyNote(note: string): void {
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) => {
       if (!previous) return previous;
       return {
@@ -607,7 +677,7 @@ export function WeeklyPlanner() {
 
   function applyWeekTemplate(template: WeekTemplate): void {
     if (!window.confirm(t("templateApplyConfirm"))) return;
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) =>
       previous
         ? {
@@ -740,7 +810,7 @@ export function WeeklyPlanner() {
       order: 0,
     };
 
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) => {
       if (!previous) return previous;
       return {
@@ -769,7 +839,7 @@ export function WeeklyPlanner() {
 
   function deleteScheduleEntry(): void {
     if (!scheduleDraft?.id) return;
-    setHasUnsavedChanges(true);
+    markChanged();
     setWeekDetail((previous) => {
       if (!previous) return previous;
       return {
@@ -843,6 +913,7 @@ export function WeeklyPlanner() {
   }
 
   function saveStatusText(): string {
+    if (saveFailed) return t("saveFailedRetry");
     if (error) return error;
     if (isSaving) return t("saving");
     if (hasUnsavedChanges) return t("unsavedChanges");
@@ -850,7 +921,7 @@ export function WeeklyPlanner() {
   }
 
   function saveStatusClass(): string {
-    if (error) return isDark ? "text-rose-300" : "text-rose-700";
+    if (error || saveFailed) return isDark ? "text-rose-300" : "text-rose-700";
     if (hasUnsavedChanges) return isDark ? "text-amber-200" : "text-amber-700";
     return isDark ? "text-emerald-300" : "text-emerald-700";
   }
@@ -878,11 +949,11 @@ export function WeeklyPlanner() {
         type="button"
         onClick={() => void saveWeek()}
         disabled={!weekDetail || isSaving}
-        className={`min-w-0 rounded-xl bg-teal-700 font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400 ${
+        className={`min-h-11 min-w-0 rounded-xl bg-teal-700 font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400 ${
           compact ? "px-3 py-2 text-xs" : "px-4 py-2 text-sm"
         } ${className}`}
       >
-        {isSaving ? t("saving") : t("saveWeek")}
+        {isSaving ? t("saving") : saveFailed ? t("trySavingAgain") : t("saveWeek")}
       </button>
     );
   }
@@ -897,6 +968,9 @@ export function WeeklyPlanner() {
   }
 
   const activeDate = resolvedActiveDayDate();
+  const writingDay = writingView ? weekDetail?.days.find((day) => day.date === writingView.dayDate) : undefined;
+  const writingSectionData = writingView ? writingDay?.sections[writingView.sectionId] : undefined;
+  const writingSectionLabel = writingView ? activeSections.find((section) => section.id === writingView.sectionId)?.label : undefined;
 
   return (
     <main
@@ -1120,13 +1194,13 @@ export function WeeklyPlanner() {
         {weekDetail ? (
           <div className="space-y-4">
             <article
-              className={`mx-auto w-full max-w-[1500px] rounded-2xl border p-4 ${mutedPanelClass}`}
+              className={`mx-auto w-full min-w-0 max-w-[1500px] rounded-2xl border p-4 ${mutedPanelClass}`}
             >
               <h3 className="mb-3 text-base font-semibold">{t("weekGoal")}</h3>
               <div className="grid gap-3 lg:grid-cols-2">
                 <label className="block">
                   {renderFieldLabel(t("weeklyGoal"))}
-                  <textarea
+                  <GrowingTextarea
                     value={weekDetail.weekly_goal}
                     onChange={(event) => updateWeeklyGoal(event.target.value)}
                     onKeyDown={handleTextareaEnterToSave}
@@ -1137,7 +1211,7 @@ export function WeeklyPlanner() {
                 </label>
                 <label className="block">
                   {renderFieldLabel(t("weeklyNote"))}
-                  <textarea
+                  <GrowingTextarea
                     value={weekDetail.weekly_note}
                     onChange={(event) => updateWeeklyNote(event.target.value)}
                     onKeyDown={handleTextareaEnterToSave}
@@ -1149,7 +1223,7 @@ export function WeeklyPlanner() {
               </div>
             </article>
 
-            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               <div className="flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-1 lg:hidden">
                 {weekDetail.days.map((day) => {
                   const isActiveDay = day.date === activeDate;
@@ -1202,7 +1276,7 @@ export function WeeklyPlanner() {
                 return (
                   <article
                     key={day.date}
-                    className={`rounded-2xl border p-4 ${
+                    className={`min-w-0 rounded-2xl border p-4 ${
                       isActiveDay
                         ? isDark
                           ? "border-teal-500 bg-slate-900 text-slate-100"
@@ -1246,7 +1320,7 @@ export function WeeklyPlanner() {
                       >
                         <label className="block">
                           {renderFieldLabel(t("dayNote"))}
-                          <textarea
+                          <GrowingTextarea
                             value={day.day_note}
                             onChange={(event) => updateDayNote(day.date, event.target.value)}
                             onKeyDown={handleTextareaEnterToSave}
@@ -1328,30 +1402,43 @@ export function WeeklyPlanner() {
                       </div>
                       {activeSections.map((section) => {
                         const sectionData = day.sections[section.id];
+                        const isOpen = openSection?.dayDate === day.date && openSection.sectionId === section.id;
+                        const sectionBodyId = `planner-section-${day.date}-${section.id}`;
                         return (
-                          <div
+                          <section
                             key={section.id}
-                            className={`rounded-xl border p-3 shadow-sm ${sectionTheme[section.id].container}`}
+                            aria-label={section.label}
+                            className={`min-w-0 rounded-2xl border shadow-sm ${isDark ? "border-slate-700 bg-slate-950/70" : "border-[#d9e4de] bg-white"}`}
                           >
-                            <div className="mb-3 flex items-center justify-between gap-2">
-                              <span
-                                className={`rounded-full px-2 py-1 text-[11px] font-semibold ${sectionTheme[section.id].badge}`}
-                              >
-                                {section.label}
+                            <button
+                              ref={(element) => { sectionButtonsRef.current[`${day.date}-${section.id}`] = element; }}
+                              type="button"
+                              aria-expanded={isOpen}
+                              aria-controls={isOpen ? sectionBodyId : undefined}
+                              onClick={() => toggleSection(day.date, section.id)}
+                              className="flex min-h-20 w-full scroll-mt-24 items-center justify-between gap-3 rounded-2xl px-3 py-3 text-start outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                            >
+                              <span className="min-w-0">
+                                <span className={`block text-sm font-bold ${isDark ? "text-teal-200" : "text-teal-900"}`}>
+                                  {section.label}
+                                </span>
+                                <span className="mt-1 block truncate text-xs opacity-75">
+                                  {sectionData.goal || t("sectionGoalHint")}
+                                </span>
                               </span>
-                              <span className={`text-xs font-semibold ${sectionTheme[section.id].title}`}>
-                                {formatDuration(sectionData.duration_minutes, language)}
+                              <span className="flex shrink-0 items-center gap-2">
+                                <span className={`text-xs font-semibold ${isDark ? "text-teal-200" : "text-teal-800"}`}>
+                                  {formatDuration(sectionData.duration_minutes, language)}
+                                </span>
+                                <span aria-hidden="true" className="text-xl leading-none">{isOpen ? "−" : "+"}</span>
                               </span>
-                            </div>
-                            <div className="grid gap-3">
-                              <label className="block">
+                            </button>
+                            {isOpen ? <div id={sectionBodyId} className={`grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 border-t p-3 ${isDark ? "border-slate-700" : "border-[#d9e4de]"}`}>
+                              <h5 className="text-sm font-semibold">{t("timeForSection")}</h5>
+                              <label className="block min-w-0">
                                 {renderFieldLabel(t("minutes"))}
                                 <input
-                                  value={
-                                    sectionData.duration_minutes
-                                      ? String(sectionData.duration_minutes)
-                                      : ""
-                                  }
+                                  value={String(sectionData.duration_minutes)}
                                   onChange={(event) =>
                                     updateDurationInput(day.date, section.id, event.target.value)
                                   }
@@ -1359,7 +1446,7 @@ export function WeeklyPlanner() {
                                   type="number"
                                   min={0}
                                   inputMode="numeric"
-                                  placeholder={t("minutes")}
+                                  aria-label={`${section.label} ${t("minutes")}`}
                                   className={`${inputClass} text-base font-semibold`}
                                 />
                               </label>
@@ -1369,7 +1456,7 @@ export function WeeklyPlanner() {
                                     key={minutes}
                                     type="button"
                                     onClick={() => adjustDuration(day.date, section.id, minutes)}
-                                    className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                                    className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition ${
                                       isDark
                                         ? "border-slate-600 bg-slate-950/70 text-slate-100 hover:border-teal-400"
                                         : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
@@ -1381,30 +1468,34 @@ export function WeeklyPlanner() {
                                 <button
                                   type="button"
                                   onClick={() => updateDuration(day.date, section.id, 0)}
-                                  className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                                  className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition ${
                                     isDark
                                       ? "border-slate-600 bg-slate-950/70 text-slate-100 hover:border-rose-400"
                                       : "border-slate-300 bg-white text-slate-700 hover:border-rose-400"
                                   }`}
                                 >
-                                  {formatNumber(0, language)}
+                                  {t("resetMinutes")}
                                 </button>
                               </div>
-                              <label className="block">
+                              <label className="block min-w-0">
                                 {renderFieldLabel(t("goal"))}
-                                <input
+                                <GrowingTextarea
                                   value={sectionData.goal}
                                   onChange={(event) =>
                                     updateSectionGoal(day.date, section.id, event.target.value)
                                   }
-                                  onKeyDown={handleEnterToSave}
+                                  onKeyDown={handleTextareaEnterToSave}
                                   placeholder={t("goalForSection")}
+                                  rows={2}
                                   className={inputClass}
                                 />
                               </label>
-                              <label className="block">
+                              <button type="button" onClick={(event) => openWritingView({ dayDate: day.date, sectionId: section.id, field: "goal" }, event.currentTarget)} className={`min-h-11 justify-self-start text-xs font-semibold underline underline-offset-4 ${isDark ? "text-teal-300" : "text-teal-700"}`}>
+                                {t("openWritingView")}
+                              </button>
+                              <label className="block min-w-0">
                                 {renderFieldLabel(t("note"))}
-                                <textarea
+                                <GrowingTextarea
                                   value={sectionData.note}
                                   onChange={(event) =>
                                     updateNote(day.date, section.id, event.target.value)
@@ -1415,8 +1506,11 @@ export function WeeklyPlanner() {
                                   className={inputClass}
                                 />
                               </label>
-                            </div>
-                          </div>
+                              <button type="button" onClick={(event) => openWritingView({ dayDate: day.date, sectionId: section.id, field: "note" }, event.currentTarget)} className={`min-h-11 justify-self-start text-xs font-semibold underline underline-offset-4 ${isDark ? "text-teal-300" : "text-teal-700"}`}>
+                                {t("openWritingView")}
+                              </button>
+                            </div> : null}
+                          </section>
                         );
                       })}
                     </div>
@@ -1683,7 +1777,7 @@ export function WeeklyPlanner() {
               </label>
               <label className="block">
                 {renderFieldLabel(t("noteOptional"))}
-                <textarea
+                <GrowingTextarea
                   value={scheduleDraft.note}
                   onChange={(event) =>
                     setScheduleDraft((previous) =>
@@ -1773,6 +1867,45 @@ export function WeeklyPlanner() {
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+      {writingView && writingSectionData ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${writingSectionLabel ?? ""} · ${t(writingView.field)}`}
+          onKeyDown={handleWritingKeyDown}
+          className={`fixed inset-0 z-50 flex flex-col gap-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] ${
+            isDark ? "bg-slate-950 text-slate-100" : "bg-[#f7f8f5] text-[#172b29]"
+          }`}
+        >
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className={`truncate text-xs font-semibold ${isDark ? "text-teal-300" : "text-teal-700"}`}>{writingSectionLabel}</p>
+              <h2 className="text-xl font-bold">{t(writingView.field)}</h2>
+            </div>
+            <button
+              ref={writingDoneRef}
+              type="button"
+              onClick={closeWritingView}
+              className="min-h-11 shrink-0 rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500"
+            >
+              {t("doneWriting")}
+            </button>
+          </div>
+          <p className="mx-auto w-full max-w-3xl text-sm opacity-75">{t("writingViewHint")}</p>
+          <textarea
+            ref={writingTextareaRef}
+            value={writingView.field === "goal" ? writingSectionData.goal : writingSectionData.note}
+            onChange={(event) => writingView.field === "goal"
+              ? updateSectionGoal(writingView.dayDate, writingView.sectionId, event.target.value)
+              : updateNote(writingView.dayDate, writingView.sectionId, event.target.value)}
+            onKeyDown={handleTextareaEnterToSave}
+            className={`${inputClass} mx-auto min-h-0 w-full max-w-3xl flex-1 resize-none rounded-2xl p-4 text-base leading-relaxed`}
+          />
+          <p role="status" className={`mx-auto w-full max-w-3xl text-xs ${saveStatusClass()}`}>
+            {saveStatusText()}
+          </p>
         </div>
       ) : null}
     </main>
