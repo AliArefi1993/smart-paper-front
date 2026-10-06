@@ -14,6 +14,7 @@ import {
   formatReadableShamsiWeekRange,
 } from "@/lib/formatters";
 import { activePlannerSections, calculateSectionTotals, SECTION_IDS } from "@/lib/planner-sections";
+import { initialOpenDays, revealDay, toggleDay, phoneOpenDays } from "@/lib/planner-day-expansion";
 import {
   getPlannerSections,
   getWeekTemplates,
@@ -240,6 +241,8 @@ export function WeeklyPlanner() {
   const [weeks, setWeeks] = useState<WeekItem[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
   const [activeDayDate, setActiveDayDate] = useState<string>("");
+  const [openDayDates, setOpenDayDates] = useState<string[]>([]);
+  const [dayAnnouncement, setDayAnnouncement] = useState("");
   const [pendingWeekStart, setPendingWeekStart] = useState<string | null>(null);
   const [weekDetail, setWeekDetail] = useState<WeekDetail | null>(null);
   const [plannerSections, setPlannerSections] = useState<PlannerSection[]>([]);
@@ -258,6 +261,9 @@ export function WeeklyPlanner() {
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft | null>(null);
   const [scheduleError, setScheduleError] = useState("");
   const weekRailRef = useRef<HTMLDivElement>(null);
+  const dayButtonsRef = useRef<Record<string, HTMLButtonElement | null>>({});
+  const minimizeDaysRef = useRef<HTMLButtonElement | null>(null);
+  const notificationCopyRef = useRef({ title: t("todayPlan"), fallbackBody: t("notificationDescription") });
   const sectionButtonsRef = useRef<Record<string, HTMLButtonElement | null>>({});
   const writingTriggerRef = useRef<HTMLButtonElement | null>(null);
   const writingDoneRef = useRef<HTMLButtonElement | null>(null);
@@ -296,6 +302,14 @@ export function WeeklyPlanner() {
     return t("weeksAhead", { count: formatNumber(offset, language) });
   }
 
+  function resetDayExpansion(week: WeekDetail): void {
+    setOpenDayDates(initialOpenDays(
+      week.days.map((day) => day.date),
+      defaultActiveDayDate(week),
+      window.matchMedia("(min-width: 64rem)").matches,
+    ));
+  }
+
   async function fetchWeek(startDate: string) {
     setMessage("");
     setError("");
@@ -304,6 +318,7 @@ export function WeeklyPlanner() {
       const payload = await getWeek(startDate);
       setPlannerSections(payload.planner_sections);
       setWeekDetail(payload);
+      resetDayExpansion(payload);
       void syncMorningPlanNotification(payload, {
         title: t("todayPlan"),
         fallbackBody: t("notificationDescription"),
@@ -321,6 +336,7 @@ export function WeeklyPlanner() {
   function loadWeek(startDate: string): void {
     setSelectedWeekStart(startDate);
     setActiveDayDate("");
+    setDayAnnouncement("");
     setOpenSection(null);
     setWritingView(null);
     setPendingWeekStart(null);
@@ -399,8 +415,13 @@ export function WeeklyPlanner() {
   }
 
   function closeWritingView(): void {
+    const dayDate = writingView?.dayDate;
     setWritingView(null);
-    requestAnimationFrame(() => writingTriggerRef.current?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => {
+      const trigger = writingTriggerRef.current;
+      const target = trigger?.getClientRects().length ? trigger : dayButtonsRef.current[dayDate ?? ""];
+      target?.focus({ preventScroll: true });
+    });
   }
 
   function handleWritingKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
@@ -420,6 +441,10 @@ export function WeeklyPlanner() {
   useEffect(() => {
     if (writingView) writingTextareaRef.current?.focus();
   }, [writingView]);
+
+  useEffect(() => {
+    notificationCopyRef.current = { title: t("todayPlan"), fallbackBody: t("notificationDescription") };
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -445,10 +470,8 @@ export function WeeklyPlanner() {
         if (cancelled) return;
 
         setWeekDetail(weekPayload);
-        void syncMorningPlanNotification(weekPayload, {
-          title: t("todayPlan"),
-          fallbackBody: t("notificationDescription"),
-        });
+        resetDayExpansion(weekPayload);
+        void syncMorningPlanNotification(weekPayload, notificationCopyRef.current);
         setHasUnsavedChanges(false);
       } catch (loadError) {
         if (cancelled) return;
@@ -466,7 +489,7 @@ export function WeeklyPlanner() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -889,10 +912,43 @@ export function WeeklyPlanner() {
   function resolvedActiveDayDate(): string {
     if (!weekDetail) return "";
     if (weekDetail.days.some((day) => day.date === activeDayDate)) return activeDayDate;
+    return defaultActiveDayDate(weekDetail);
+  }
 
-    const todayIso = new Date().toISOString().slice(0, 10);
-    const todayInWeek = weekDetail.days.find((day) => day.date === todayIso);
-    return todayInWeek?.date ?? weekDetail.days[0]?.date ?? "";
+  function placeOpenedDay(dayDate: string, fromRail: boolean): void {
+    requestAnimationFrame(() => {
+      const header = dayButtonsRef.current[dayDate];
+      if (!window.matchMedia("(min-width: 64rem)").matches) {
+        header?.scrollIntoView({
+          block: "start",
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        });
+      }
+      if (fromRail) header?.focus({ preventScroll: true });
+    });
+  }
+
+  function revealPlannerDay(dayDate: string, fromRail = false): void {
+    setActiveDayDate(dayDate);
+    setDayAnnouncement("");
+    setOpenDayDates((previous) => revealDay(previous, dayDate, window.matchMedia("(min-width: 64rem)").matches));
+    placeOpenedDay(dayDate, fromRail);
+  }
+
+  function togglePlannerDay(dayDate: string): void {
+    dayButtonsRef.current[dayDate]?.focus({ preventScroll: true });
+    const opening = !openDayDates.includes(dayDate);
+    setActiveDayDate(dayDate);
+    setDayAnnouncement("");
+    setOpenDayDates((previous) => toggleDay(previous, dayDate, window.matchMedia("(min-width: 64rem)").matches));
+    if (opening) placeOpenedDay(dayDate, false);
+  }
+
+  function minimizeAllDays(): void {
+    if (openDayDates.length === 0) return;
+    setOpenDayDates([]);
+    setDayAnnouncement(t("allDaysMinimized"));
+    minimizeDaysRef.current?.focus({ preventScroll: true });
   }
 
   function dayTotalMinutes(day: DayData): number {
@@ -931,7 +987,7 @@ export function WeeklyPlanner() {
 
     const currentIndex = weekDetail.days.findIndex((day) => day.date === activeDate);
     const nextDay = weekDetail.days[Math.min(currentIndex + 1, weekDetail.days.length - 1)];
-    if (nextDay) setActiveDayDate(nextDay.date);
+    if (nextDay) revealPlannerDay(nextDay.date, true);
   }
 
   function handlePlannerNavigation(event: MouseEvent<HTMLAnchorElement>): void {
@@ -965,6 +1021,28 @@ export function WeeklyPlanner() {
   }
 
   const activeDate = resolvedActiveDayDate();
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 64rem)");
+    function handleLayoutChange(event: MediaQueryListEvent): void {
+      if (event.matches) return;
+      setOpenDayDates((previous) => phoneOpenDays(previous, activeDate));
+      // Only recover focus if resizing hides the editor that currently owns it.
+      const focusedBody = document.activeElement?.closest<HTMLElement>("[data-planner-day-body]");
+      if (focusedBody) {
+        requestAnimationFrame(() => {
+          if (focusedBody.hidden) {
+            const visibleBody = document.querySelector<HTMLElement>("[data-planner-day-body]:not([hidden])");
+            const header = visibleBody ? dayButtonsRef.current[visibleBody.dataset.plannerDayBody ?? ""] : minimizeDaysRef.current;
+            header?.focus({ preventScroll: true });
+          }
+        });
+      }
+    }
+    media.addEventListener("change", handleLayoutChange);
+    return () => media.removeEventListener("change", handleLayoutChange);
+  }, [activeDate]);
+
   const writingDay = writingView ? weekDetail?.days.find((day) => day.date === writingView.dayDate) : undefined;
   const writingSectionData = writingView ? writingDay?.sections[writingView.sectionId] : undefined;
   const writingSectionLabel = writingView ? activeSections.find((section) => section.id === writingView.sectionId)?.label : undefined;
@@ -1191,7 +1269,20 @@ export function WeeklyPlanner() {
               </div>
             </article>
 
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <button
+                ref={minimizeDaysRef}
+                type="button"
+                onClick={minimizeAllDays}
+                aria-disabled={openDayDates.length === 0}
+                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${navigationLinkClass} ${openDayDates.length === 0 ? "opacity-60" : ""}`}
+              >
+                {t("minimizeAllDays")}
+              </button>
+              {openDayDates.length === 0 ? <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>{t("weekOverviewHint")}</p> : null}
+              <span className="sr-only" role="status" aria-live="polite">{dayAnnouncement}</span>
+            </div>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               <div className="flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-1 lg:hidden">
                 {weekDetail.days.map((day) => {
                   const isActiveDay = day.date === activeDate;
@@ -1200,7 +1291,7 @@ export function WeeklyPlanner() {
                     <button
                       key={`mobile-day-${day.date}`}
                       type="button"
-                      onClick={() => setActiveDayDate(day.date)}
+                      onClick={() => revealPlannerDay(day.date, true)}
                       aria-pressed={isActiveDay}
                       className={`min-h-14 min-w-28 rounded-xl border px-3 py-2 text-start transition ${
                         isActiveDay
@@ -1231,7 +1322,7 @@ export function WeeklyPlanner() {
                         }`}
                       />
                       <span className="sr-only">
-                        {dayHasContent ? t("sectionDetails") : t("noNotesYet")}
+                        {dayHasContent ? t("sectionDetails") : t("noDayDetailsYet")}
                       </span>
                     </button>
                   );
@@ -1239,6 +1330,10 @@ export function WeeklyPlanner() {
               </div>
               {weekDetail.days.map((day) => {
                 const dayTotal = dayTotalMinutes(day);
+                const isDayOpen = openDayDates.includes(day.date);
+                const dayBodyId = `planner-day-${day.date}`;
+                const daySummaryId = `planner-day-summary-${day.date}`;
+                const dayName = t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday");
                 const isActiveDay = day.date === activeDate;
                 const dayHasContent = dayHasDetails(day);
                 return (
@@ -1254,13 +1349,20 @@ export function WeeklyPlanner() {
                   >
                     <button
                       type="button"
-                      onClick={() => setActiveDayDate(day.date)}
-                      className={`flex w-full items-center justify-between gap-3 border-b pb-3 text-start ${
+                      ref={(element) => { dayButtonsRef.current[day.date] = element; }}
+                      onClick={() => togglePlannerDay(day.date)}
+                      aria-label={`${dayName} · ${isDayOpen ? t("minimizeDay") : t("showDay")}`}
+                      aria-describedby={daySummaryId}
+                      aria-controls={dayBodyId}
+                      className={`flex min-h-11 w-full scroll-mt-24 items-center justify-between gap-3 rounded-lg border-b pb-3 text-start outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
                         isDark ? "border-slate-700" : "border-slate-200"
                       }`}
-                      aria-expanded={isActiveDay}
+                      aria-expanded={isDayOpen}
                     >
-                      <span>
+                      <span id={daySummaryId} className="sr-only">
+                        {formatReadableShamsiDate(day.date, language)} · {formatDuration(dayTotal, language)} · {dayHasContent ? t("sectionDetails") : t("noDayDetailsYet")}
+                      </span>
+                      <span className="min-w-0">
                         <span className="block text-base font-semibold">
                           {t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday")}
                         </span>
@@ -1268,17 +1370,20 @@ export function WeeklyPlanner() {
                           {formatReadableShamsiDate(day.date, language)}
                         </span>
                       </span>
-                      <span className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="flex min-w-0 max-w-[55%] flex-col items-end gap-1 text-end">
                         <span className="rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white">
                           {formatDuration(dayTotal, language)}
                         </span>
-                        <span className={`text-[11px] font-medium ${dayHasContent ? "text-emerald-500" : isDark ? "text-slate-400" : "text-slate-500"}`}>
-                          {dayHasContent ? t("sectionDetails") : t("noNotesYet")}
+                        <span className={`text-[11px] font-medium ${dayHasContent ? isDark ? "text-emerald-300" : "text-emerald-700" : isDark ? "text-slate-400" : "text-slate-500"}`}>
+                          {dayHasContent ? t("sectionDetails") : t("noDayDetailsYet")}
+                        </span>
+                        <span className={`text-xs font-semibold ${isDark ? "text-teal-300" : "text-teal-700"}`}>
+                          <span aria-hidden="true">{isDayOpen ? "−" : "+"} </span>{isDayOpen ? t("minimizeDay") : t("showDay")}
                         </span>
                       </span>
                     </button>
 
-                    <div className={`mt-3 space-y-3 ${isActiveDay ? "block" : "hidden lg:block"}`}>
+                    <div id={dayBodyId} data-planner-day-body={day.date} hidden={!isDayOpen} className="mt-3 space-y-3">
                       <div
                         className={`rounded-xl border p-3 ${
                           isDark
@@ -1878,6 +1983,11 @@ export function WeeklyPlanner() {
       ) : null}
     </main>
   );
+}
+
+function defaultActiveDayDate(week: WeekDetail): string {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  return week.days.find((day) => day.date === todayIso)?.date ?? week.days[0]?.date ?? "";
 }
 
 function calculateTotals(days: DayData[], sections: PlannerSection[]): WeekTotals {
