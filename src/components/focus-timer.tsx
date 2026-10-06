@@ -156,10 +156,10 @@ export function FocusTimer() {
                 <clipPath id="timer-sand-top"><path d="M24 20 H136 Q130 63 85 94 H75 Q30 63 24 20 Z" /></clipPath>
                 <clipPath id="timer-sand-bottom"><path d="M75 96 H85 Q130 127 136 170 H24 Q30 127 75 96 Z" /></clipPath>
               </defs>
-              <path d="M24 20 H136 Q130 63 85 94 H75 Q30 63 24 20 Z M75 96 H85 Q130 127 136 170 H24 Q30 127 75 96 Z" fill="#e7f4ef" stroke="#0f766e" strokeWidth="5" strokeLinejoin="round" />
+              <path className="sp-timer-glass" d="M24 20 H136 Q130 63 85 94 H75 Q30 63 24 20 Z M75 96 H85 Q130 127 136 170 H24 Q30 127 75 96 Z" fill="#e7f4ef" stroke="#0f766e" strokeWidth="5" strokeLinejoin="round" />
               <rect x="20" y={20 + progress * 0.75} width="120" height={Math.max(0, 75 - progress * 0.75)} fill="#d69a54" clipPath="url(#timer-sand-top)" />
               <rect x="20" y={170 - progress * 0.75} width="120" height={progress * 0.75} fill="#d69a54" clipPath="url(#timer-sand-bottom)" />
-              <path d="M15 18 H145 M15 172 H145" stroke="#125b53" strokeWidth="8" strokeLinecap="round" />
+              <path className="sp-timer-frame" d="M15 18 H145 M15 172 H145" stroke="#125b53" strokeWidth="8" strokeLinecap="round" />
             </svg>
           </div>
 

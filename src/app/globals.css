@@ -233,8 +233,20 @@ html.sp-dark .sp-page [class~="placeholder:text-[#6a8178]"]::placeholder {
   color: var(--muted-foreground);
 }
 
-html.sp-dark .sp-page [class~="hover:bg-[#e7f4ef]"]:hover {
+html.sp-dark .sp-page :is(
+  [class~="hover:bg-[#e7f4ef]"],
+  [class~="hover:bg-white/70"]
+):hover {
   background-color: #30443f;
+}
+
+html.sp-dark .sp-page .sp-timer-glass {
+  fill: var(--primary-soft);
+  stroke: var(--primary);
+}
+
+html.sp-dark .sp-page .sp-timer-frame {
+  stroke: var(--primary);
 }
 
 html.sp-dark .sp-page [class~="hover:text-teal-800"]:hover {
