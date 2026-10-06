@@ -67,9 +67,22 @@ function notificationBody(week: WeekDetail | null, targetDate: Date, fallback: s
     .join(" • ");
 }
 
-export async function syncMorningPlanNotification(
+let notificationSyncChain: Promise<NotificationSyncResult | void> = Promise.resolve();
+
+export function syncMorningPlanNotification(
   week: WeekDetail | null,
   copy: { title: string; fallbackBody: string },
+  requestPermission = true,
+): Promise<NotificationSyncResult> {
+  const result = notificationSyncChain.then(() => performNotificationSync(week, copy, requestPermission));
+  notificationSyncChain = result.catch(() => {});
+  return result;
+}
+
+async function performNotificationSync(
+  week: WeekDetail | null,
+  copy: { title: string; fallbackBody: string },
+  requestPermission: boolean,
 ): Promise<NotificationSyncResult> {
   const settings = getMorningNotificationSettings();
   if (!Capacitor.isNativePlatform()) return "web";
@@ -80,13 +93,24 @@ export async function syncMorningPlanNotification(
   if (!settings.enabled) return "disabled";
 
   const permission = await LocalNotifications.checkPermissions();
+  if (permission.display !== "granted" && !requestPermission) return "denied";
   const displayPermission =
     permission.display === "granted"
       ? permission
       : await LocalNotifications.requestPermissions();
   if (displayPermission.display !== "granted") return "denied";
 
-  const at = nextNotificationDate(settings.time);
+  // Settings may change while a permission/native call is pending.
+  const latestSettings = getMorningNotificationSettings();
+  if (!latestSettings.enabled) return "disabled";
+  const at = nextNotificationDate(latestSettings.time);
+  if (process.env.NEXT_PUBLIC_DATA_MODE === "local") {
+    const start = new Date(at);
+    start.setDate(start.getDate() - (start.getDay() + 1) % 7);
+    const { getLocalWeek } = await import("@/lib/local-store");
+    week = await getLocalWeek(localIsoDate(start));
+  }
+  if (!getMorningNotificationSettings().enabled) return "disabled";
   await LocalNotifications.schedule({
     notifications: [
       {
@@ -98,4 +122,33 @@ export async function syncMorningPlanNotification(
     ],
   });
   return "scheduled";
+}
+
+let plannerNotificationTimer: ReturnType<typeof setTimeout> | undefined;
+let plannerNotificationPending: { week: WeekDetail; copy: { title: string; fallbackBody: string } } | null = null;
+let plannerNotificationRunning = false;
+
+/** Coalesce Planner writes independently from persistence, without permission prompts. */
+export function queuePlannerNotification(week: WeekDetail, copy: { title: string; fallbackBody: string }): void {
+  plannerNotificationPending = { week, copy };
+  clearTimeout(plannerNotificationTimer);
+  plannerNotificationTimer = setTimeout(() => void drainPlannerNotification(), 1200);
+}
+
+async function drainPlannerNotification(): Promise<void> {
+  if (plannerNotificationRunning || !plannerNotificationPending) return;
+  plannerNotificationRunning = true;
+  const pending = plannerNotificationPending;
+  plannerNotificationPending = null;
+  try {
+    await syncMorningPlanNotification(pending.week, pending.copy, false);
+  } catch {
+    // Notification availability must not turn a successful planner write into failure.
+  } finally {
+    plannerNotificationRunning = false;
+    if (plannerNotificationPending) {
+      clearTimeout(plannerNotificationTimer);
+      plannerNotificationTimer = setTimeout(() => void drainPlannerNotification(), 1200);
+    }
+  }
 }

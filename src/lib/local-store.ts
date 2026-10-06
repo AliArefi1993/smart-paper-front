@@ -186,11 +186,15 @@ export async function getLocalWeek(startDate: string): Promise<WeekDetail> {
   return normalizeWeekDetail(getOrCreateWeek(startDate));
 }
 
-export async function saveLocalWeek(
+export function isLocalWeekStored(startDate: string): boolean {
+  return Object.hasOwn(getStoredWeeks(), startDate);
+}
+
+export function saveLocalWeek(
   week: Pick<WeekDetail, "start_date" | "weekly_goal" | "weekly_note"> & {
     days: DayData[];
   },
-): Promise<WeekDetail> {
+): WeekDetail {
   const existing = getOrCreateWeek(week.start_date);
   return saveStoredWeek({
     ...existing,

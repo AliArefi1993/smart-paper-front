@@ -24,7 +24,9 @@ import {
   saveWeekTemplate,
   saveWeek as saveWeekData,
 } from "@/lib/planner-store";
-import { syncMorningPlanNotification } from "@/lib/notifications";
+import { queuePlannerNotification, syncMorningPlanNotification } from "@/lib/notifications";
+import { isLocalWeekStored, saveLocalWeek } from "@/lib/local-store";
+import { PlannerLocalAutosave } from "@/lib/planner-local-autosave";
 import type { TranslationKey } from "@/lib/i18n";
 import { useLanguage } from "@/lib/use-language";
 import { useTheme } from "@/lib/use-theme";
@@ -235,6 +237,10 @@ function weekOffsetFromCurrent(week: WeekItem): number {
   return Math.round((start.getTime() - today.getTime()) / (7 * 24 * 60 * 60 * 1000));
 }
 
+// Retain a failed week through SPA Back/return, without adding browser history entries.
+const localWeekAutosave = new PlannerLocalAutosave<WeekDetail>(saveLocalWeek);
+const automaticSaving = process.env.NEXT_PUBLIC_DATA_MODE === "local";
+
 export function WeeklyPlanner() {
   const { language, isPersian, t } = useLanguage();
   const themeMode = useTheme();
@@ -269,6 +275,9 @@ export function WeeklyPlanner() {
   const writingDoneRef = useRef<HTMLButtonElement | null>(null);
   const writingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const editRevisionRef = useRef(0);
+  const weekDetailRef = useRef<WeekDetail | null>(null);
+  const loadRequestRef = useRef(0);
+  const [hasLocalSaved, setHasLocalSaved] = useState(false);
   const isDark = themeMode === "dark";
   const sectionTheme = isDark ? SECTION_THEME_DARK : SECTION_THEME_SETUP;
   const activeSections = useMemo(
@@ -318,26 +327,60 @@ export function WeeklyPlanner() {
     ));
   }
 
+  function acceptLoadedWeek(payload: WeekDetail): WeekDetail {
+    const loaded = automaticSaving ? localWeekAutosave.load(payload) : payload;
+    weekDetailRef.current = loaded;
+    setWeekDetail(loaded);
+    setHasLocalSaved(automaticSaving && !localWeekAutosave.hasFailure() && isLocalWeekStored(loaded.start_date));
+    setHasUnsavedChanges(automaticSaving && localWeekAutosave.hasFailure());
+    setSaveFailed(automaticSaving && localWeekAutosave.hasFailure());
+    return loaded;
+  }
+
+  function persistLocalStatus(saved: boolean): void {
+    setHasUnsavedChanges(!saved);
+    setSaveFailed(!saved);
+    setHasLocalSaved(saved);
+    setMessage("");
+    setError("");
+    if (saved && weekDetailRef.current) {
+      queuePlannerNotification(weekDetailRef.current, notificationCopyRef.current);
+    }
+  }
+
+  function updateWeekDetail(update: (previous: WeekDetail | null) => WeekDetail | null): void {
+    const previous = weekDetailRef.current;
+    const updated = update(previous);
+    if (!updated || updated === previous) return;
+    const next = { ...updated, totals: calculateTotals(updated.days, activeSections) };
+    weekDetailRef.current = next;
+    setWeekDetail(next);
+    if (automaticSaving) persistLocalStatus(localWeekAutosave.edit(next));
+  }
+
+  function retryLocalSave(): void {
+    persistLocalStatus(localWeekAutosave.retry());
+  }
+
   async function fetchWeek(startDate: string) {
+    const request = ++loadRequestRef.current;
     setMessage("");
     setError("");
     setSaveFailed(false);
     try {
       const payload = await getWeek(startDate);
-      setPlannerSections(payload.planner_sections);
-      setWeekDetail(payload);
-      resetDayExpansion(payload);
-      void syncMorningPlanNotification(payload, {
-        title: t("todayPlan"),
-        fallbackBody: t("notificationDescription"),
-      });
-      setHasUnsavedChanges(false);
+      if (request !== loadRequestRef.current) return;
+      const loaded = acceptLoadedWeek(payload);
+      setPlannerSections(loaded.planner_sections);
+      resetDayExpansion(loaded);
+      queuePlannerNotification(loaded, notificationCopyRef.current);
     } catch (loadError) {
+      if (request !== loadRequestRef.current) return;
       setError(
         loadError instanceof Error ? loadError.message : t("loadingSelectedWeek"),
       );
     } finally {
-      setIsLoadingWeek(false);
+      if (request === loadRequestRef.current) setIsLoadingWeek(false);
     }
   }
 
@@ -356,18 +399,23 @@ export function WeeklyPlanner() {
     if (!weekDetail || isSaving) return false;
 
     const savingRevision = editRevisionRef.current;
+    const savingWeekStart = weekDetail.start_date;
     setIsSaving(true);
     setSaveFailed(false);
     setMessage("");
     setError("");
     try {
       const payload = await saveWeekData(weekDetail);
+      if (weekDetailRef.current?.start_date !== savingWeekStart) return false;
       const noNewEdits = editRevisionRef.current === savingRevision;
-      if (noNewEdits) setWeekDetail(payload);
+      if (noNewEdits) {
+        weekDetailRef.current = payload;
+        setWeekDetail(payload);
+      }
       void syncMorningPlanNotification(payload, {
         title: t("todayPlan"),
         fallbackBody: t("notificationDescription"),
-      });
+      }, false).catch(() => {});
       setHasUnsavedChanges(!noNewEdits);
       setMessage(noNewEdits ? t("savedSuccessfully") : "");
       return noNewEdits;
@@ -381,7 +429,7 @@ export function WeeklyPlanner() {
   }
 
   function handleEnterToSave(event: KeyboardEvent<HTMLInputElement>): void {
-    if (event.key !== "Enter") return;
+    if (automaticSaving || event.key !== "Enter") return;
     event.preventDefault();
     if (isSaving) return;
     void saveWeek();
@@ -390,13 +438,14 @@ export function WeeklyPlanner() {
   function handleTextareaEnterToSave(
     event: KeyboardEvent<HTMLTextAreaElement>,
   ): void {
-    if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
+    if (automaticSaving || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
     event.preventDefault();
     if (isSaving) return;
     void saveWeek();
   }
 
   function markChanged(): void {
+    if (automaticSaving) return;
     editRevisionRef.current += 1;
     setHasUnsavedChanges(true);
     setSaveFailed(false);
@@ -437,11 +486,12 @@ export function WeeklyPlanner() {
       event.preventDefault();
       closeWritingView();
     } else if (event.key === "Tab") {
-      const atDone = document.activeElement === writingDoneRef.current;
-      const atText = document.activeElement === writingTextareaRef.current;
-      if ((event.shiftKey && atDone) || (!event.shiftKey && atText)) {
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), textarea"));
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if ((event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
         event.preventDefault();
-        (atDone ? writingTextareaRef : writingDoneRef).current?.focus();
+        (event.shiftKey ? last : first)?.focus();
       }
     }
   }
@@ -459,10 +509,11 @@ export function WeeklyPlanner() {
 
     async function loadInitialData() {
       try {
+        const recovered = automaticSaving ? localWeekAutosave.recovery() : null;
         const [weeksPayload, sectionsPayload, templatesPayload] = await Promise.all([
           getWeeks(8),
-          getPlannerSections(),
-          getWeekTemplates(),
+          recovered ? Promise.resolve(recovered.planner_sections) : getPlannerSections(),
+          recovered ? getWeekTemplates().catch(() => []) : getWeekTemplates(),
         ]);
 
         if (cancelled) return;
@@ -470,17 +521,17 @@ export function WeeklyPlanner() {
         setWeeks(weeksPayload.weeks);
         setPlannerSections(sectionsPayload);
         setWeekTemplates(templatesPayload);
-        setSelectedWeekStart(weeksPayload.current_week_start);
+        const initialWeekStart = recovered?.start_date ?? weeksPayload.current_week_start;
+        setSelectedWeekStart(initialWeekStart);
         setIsLoadingWeeks(false);
         setIsLoadingWeek(true);
 
-        const weekPayload = await getWeek(weeksPayload.current_week_start);
+        const weekPayload = recovered ?? await getWeek(initialWeekStart);
         if (cancelled) return;
 
-        setWeekDetail(weekPayload);
-        resetDayExpansion(weekPayload);
-        void syncMorningPlanNotification(weekPayload, notificationCopyRef.current);
-        setHasUnsavedChanges(false);
+        const loaded = acceptLoadedWeek(weekPayload);
+        resetDayExpansion(loaded);
+        if (!recovered) queuePlannerNotification(loaded, notificationCopyRef.current);
       } catch (loadError) {
         if (cancelled) return;
         setError(
@@ -579,7 +630,7 @@ export function WeeklyPlanner() {
   function updateDuration(dayDate: string, section: SectionName, value: number): void {
     const nextDuration = Number.isFinite(value) ? Math.max(0, value) : 0;
     markChanged();
-    setWeekDetail((previous) => {
+    updateWeekDetail((previous) => {
       if (!previous) return previous;
 
       const nextDays = previous.days.map((day) => {
@@ -617,7 +668,7 @@ export function WeeklyPlanner() {
 
   function updateNote(dayDate: string, section: SectionName, note: string): void {
     markChanged();
-    setWeekDetail((previous) => {
+    updateWeekDetail((previous) => {
       if (!previous) return previous;
 
       const nextDays = previous.days.map((day) => {
@@ -643,7 +694,7 @@ export function WeeklyPlanner() {
 
   function updateDayNote(dayDate: string, dayNote: string): void {
     markChanged();
-    setWeekDetail((previous) => {
+    updateWeekDetail((previous) => {
       if (!previous) return previous;
 
       return {
@@ -657,7 +708,7 @@ export function WeeklyPlanner() {
 
   function updateSectionGoal(dayDate: string, section: SectionName, goal: string): void {
     markChanged();
-    setWeekDetail((previous) => {
+    updateWeekDetail((previous) => {
       if (!previous) return previous;
 
       const nextDays = previous.days.map((day) => {
@@ -683,7 +734,7 @@ export function WeeklyPlanner() {
 
   function updateWeeklyGoal(goal: string): void {
     markChanged();
-    setWeekDetail((previous) => {
+    updateWeekDetail((previous) => {
       if (!previous) return previous;
       return {
         ...previous,
@@ -694,7 +745,7 @@ export function WeeklyPlanner() {
 
   function updateWeeklyNote(note: string): void {
     markChanged();
-    setWeekDetail((previous) => {
+    updateWeekDetail((previous) => {
       if (!previous) return previous;
       return {
         ...previous,
@@ -706,7 +757,7 @@ export function WeeklyPlanner() {
   function applyWeekTemplate(template: WeekTemplate): void {
     if (!window.confirm(t("templateApplyConfirm"))) return;
     markChanged();
-    setWeekDetail((previous) =>
+    updateWeekDetail((previous) =>
       previous
         ? {
             ...previous,
@@ -839,7 +890,7 @@ export function WeeklyPlanner() {
     };
 
     markChanged();
-    setWeekDetail((previous) => {
+    updateWeekDetail((previous) => {
       if (!previous) return previous;
       return {
         ...previous,
@@ -868,7 +919,7 @@ export function WeeklyPlanner() {
   function deleteScheduleEntry(): void {
     if (!scheduleDraft?.id) return;
     markChanged();
-    setWeekDetail((previous) => {
+    updateWeekDetail((previous) => {
       if (!previous) return previous;
       return {
         ...previous,
@@ -889,6 +940,7 @@ export function WeeklyPlanner() {
 
   function handleWeekSelect(startDate: string): void {
     if (startDate === selectedWeekStart || isSaving || isLoadingWeek) return;
+    if (automaticSaving && localWeekAutosave.hasFailure()) return;
     if (hasUnsavedChanges) {
       setPendingWeekStart(startDate);
       return;
@@ -974,6 +1026,14 @@ export function WeeklyPlanner() {
   }
 
   function saveStatusText(): string {
+    if (isLoadingWeeks || isLoadingWeek) return t("plannerLoadingWeek");
+    if (automaticSaving) {
+      if (saveFailed) return t("saveFailedRetry");
+      if (error) return error;
+      if (isSaving) return t("plannerSavingLocally");
+      if (hasUnsavedChanges) return t("plannerChangesPending");
+      return t(hasLocalSaved ? "plannerSavedLocally" : "plannerAutomaticSaving");
+    }
     if (saveFailed) return t("saveFailedRetry");
     if (error) return error;
     if (isSaving) return t("saving");
@@ -990,8 +1050,10 @@ export function WeeklyPlanner() {
   async function saveAndGoToNextDay(): Promise<void> {
     if (!weekDetail) return;
 
-    const saved = await saveWeek();
-    if (!saved) return;
+    if (!automaticSaving) {
+      const saved = await saveWeek();
+      if (!saved) return;
+    }
 
     const currentIndex = weekDetail.days.findIndex((day) => day.date === activeDate);
     const nextDay = weekDetail.days[Math.min(currentIndex + 1, weekDetail.days.length - 1)];
@@ -999,12 +1061,17 @@ export function WeeklyPlanner() {
   }
 
   function handlePlannerNavigation(event: MouseEvent<HTMLAnchorElement>): void {
+    if (automaticSaving) {
+      if (localWeekAutosave.hasFailure()) event.preventDefault();
+      return;
+    }
     if (!hasUnsavedChanges) return;
     if (window.confirm(t("leaveWithUnsavedChanges"))) return;
     event.preventDefault();
   }
 
   function renderSaveWeekButton(className = "", compact = false) {
+    if (automaticSaving) return null;
     return (
       <button
         type="button"
@@ -1017,6 +1084,12 @@ export function WeeklyPlanner() {
         {isSaving ? t("saving") : saveFailed ? t("trySavingAgain") : t("saveWeek")}
       </button>
     );
+  }
+
+  function renderRetryButton() {
+    return <button type="button" onClick={retryLocalSave} className={`min-h-12 rounded-xl px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500 ${primaryActionClass}`}>
+      {t("plannerRetry")}
+    </button>;
   }
 
   function renderFieldLabel(label: string, helper?: string) {
@@ -1060,6 +1133,7 @@ export function WeeklyPlanner() {
       dir={isPersian ? "rtl" : "ltr"}
       className={`mx-auto flex min-h-screen w-full min-w-0 max-w-none flex-col gap-6 overflow-x-hidden px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${isDark ? "sp-dark" : "sp-light"} ${pageClass}`}
     >
+      {!writingView ? <p className="sr-only" role={saveFailed ? "alert" : "status"} aria-atomic="true">{saveStatusText()}</p> : null}
       <section
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-5 shadow-sm backdrop-blur ${panelClass}`}
       >
@@ -1196,9 +1270,10 @@ export function WeeklyPlanner() {
                   )
                 : t("weekDetails")}
             </h2>
-            <p className={`mt-1 text-sm font-medium ${saveStatusClass()}`}>
-              {saveStatusText()}
-            </p>
+            <div className={`mt-1 items-center gap-3 ${automaticSaving && weekDetail ? "hidden md:flex" : "flex"}`}>
+              <p className={`text-sm font-medium ${saveStatusClass()}`}>{saveStatusText()}</p>
+              {automaticSaving && saveFailed ? renderRetryButton() : null}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {totals ? (
@@ -1679,27 +1754,28 @@ export function WeeklyPlanner() {
               : "border-slate-200 bg-white/95"
           }`}
         >
-          <div className="mx-auto grid max-w-md gap-2">
+          <div className={`mx-auto ${automaticSaving ? "flex max-w-md flex-wrap items-center justify-between gap-2" : "grid max-w-md gap-2"}`}>
             <p
-              className={`min-w-0 text-xs font-medium ${saveStatusClass()}`}
+              className={`min-w-0 ${automaticSaving ? "flex-1 basis-40" : ""} text-xs font-medium ${saveStatusClass()}`}
             >
               {saveStatusText()}
             </p>
-            <div className="grid min-w-0 grid-cols-2 gap-2">
+            <div className={`grid min-w-0 ${automaticSaving ? "grid-cols-1" : "grid-cols-2"} gap-2`}>
               <button
                 type="button"
                 onClick={() => void saveAndGoToNextDay()}
-                disabled={!weekDetail || isSaving}
-                className={`min-w-0 rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                disabled={!weekDetail || isSaving || isLoadingWeek}
+                className={`min-h-12 min-w-0 rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   isDark
                     ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
                     : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
                 }`}
               >
-                {t("saveAndNextDay")}
+                {t(automaticSaving ? "plannerNextDay" : "saveAndNextDay")}
               </button>
               {renderSaveWeekButton("w-full px-4", true)}
             </div>
+            {automaticSaving && saveFailed ? <div className="w-full">{renderRetryButton()}</div> : null}
           </div>
         </div>
       ) : null}
@@ -1874,9 +1950,9 @@ export function WeeklyPlanner() {
               <button
                 type="button"
                 onClick={saveScheduleDraft}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${primaryActionClass}`}
+                className={`min-h-12 rounded-xl px-4 py-2 text-sm font-semibold transition ${primaryActionClass}`}
               >
-                {t("save")}
+                {t(scheduleDraft.id ? "plannerApplyEventChanges" : "plannerAddEvent")}
               </button>
               {scheduleDraft.id ? (
                 <button
@@ -1974,7 +2050,7 @@ export function WeeklyPlanner() {
               {t("doneWriting")}
             </button>
           </div>
-          <p className="mx-auto w-full max-w-3xl text-sm opacity-75">{t("writingViewHint")}</p>
+          <p className="mx-auto w-full max-w-3xl text-sm opacity-75">{t(automaticSaving ? "plannerAutomaticSaving" : "writingViewHint")}</p>
           <textarea
             ref={writingTextareaRef}
             value={writingView.field === "goal" ? writingSectionData.goal : writingSectionData.note}
@@ -1984,9 +2060,10 @@ export function WeeklyPlanner() {
             onKeyDown={handleTextareaEnterToSave}
             className={`${inputClass} mx-auto min-h-0 w-full max-w-3xl flex-1 resize-none rounded-2xl p-4 text-base leading-relaxed`}
           />
-          <p role="status" className={`mx-auto w-full max-w-3xl text-xs ${saveStatusClass()}`}>
-            {saveStatusText()}
-          </p>
+          <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-3">
+            <p role={saveFailed ? "alert" : "status"} aria-atomic="true" className={`flex-1 text-xs ${saveStatusClass()}`}>{saveStatusText()}</p>
+            {automaticSaving && saveFailed ? renderRetryButton() : null}
+          </div>
         </div>
       ) : null}
     </main>
