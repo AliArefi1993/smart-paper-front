@@ -16,7 +16,7 @@ export function LanguageToggle({ tone = "light" }: LanguageToggleProps) {
     <label
       className={`flex min-h-11 min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
         isDark
-          ? "border-slate-600 bg-slate-800 text-slate-100"
+          ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)]"
           : "border-slate-300 bg-white text-slate-800"
       }`}
     >
@@ -24,10 +24,10 @@ export function LanguageToggle({ tone = "light" }: LanguageToggleProps) {
       <select
         value={language}
         onChange={(event) => setLanguage(event.target.value === "fa" ? "fa" : "en")}
-        className={`min-h-9 min-w-0 rounded-lg border px-2 py-1 text-sm outline-none focus:border-teal-700 ${
+        className={`min-h-9 min-w-0 rounded-lg border px-2 py-1 text-sm outline-none ${
           isDark
-            ? "border-slate-600 bg-slate-950 text-slate-100"
-            : "border-slate-300 bg-slate-50 text-slate-900"
+            ? "border-[color-mix(in_srgb,var(--muted-foreground)_60%,var(--surface))] bg-[var(--surface)] text-[var(--foreground)] focus:border-[var(--primary)]"
+            : "border-slate-300 bg-slate-50 text-slate-900 focus:border-teal-700"
         }`}
       >
         <option value="en">{t("english")}</option>

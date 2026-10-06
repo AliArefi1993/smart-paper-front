@@ -121,61 +121,61 @@ const SECTION_THEME_SETUP: Record<SectionName, ThemeClasses> = {
 
 const SECTION_THEME_DARK: Record<SectionName, ThemeClasses> = {
   slot_1: {
-    container: "border-fuchsia-700/70 bg-slate-900/85",
+    container: "border-fuchsia-700/70 bg-[var(--surface)]",
     badge: "bg-fuchsia-500 text-slate-950",
     title: "text-fuchsia-200",
     line: "border-fuchsia-700/60",
   },
   slot_2: {
-    container: "border-cyan-700/70 bg-slate-900/85",
+    container: "border-cyan-700/70 bg-[var(--surface)]",
     badge: "bg-cyan-400 text-slate-950",
     title: "text-cyan-200",
     line: "border-cyan-700/60",
   },
   slot_3: {
-    container: "border-amber-700/70 bg-slate-900/85",
+    container: "border-amber-700/70 bg-[var(--surface)]",
     badge: "bg-amber-400 text-slate-950",
     title: "text-amber-200",
     line: "border-amber-700/60",
   },
   slot_4: {
-    container: "border-emerald-700/70 bg-slate-900/85",
+    container: "border-emerald-700/70 bg-[var(--surface)]",
     badge: "bg-emerald-400 text-slate-950",
     title: "text-emerald-200",
     line: "border-emerald-700/60",
   },
   slot_5: {
-    container: "border-violet-700/70 bg-slate-900/85",
+    container: "border-violet-700/70 bg-[var(--surface)]",
     badge: "bg-violet-400 text-slate-950",
     title: "text-violet-200",
     line: "border-violet-700/60",
   },
   slot_6: {
-    container: "border-sky-700/70 bg-slate-900/85",
+    container: "border-sky-700/70 bg-[var(--surface)]",
     badge: "bg-sky-400 text-slate-950",
     title: "text-sky-200",
     line: "border-sky-700/60",
   },
   slot_7: {
-    container: "border-rose-700/70 bg-slate-900/85",
+    container: "border-rose-700/70 bg-[var(--surface)]",
     badge: "bg-rose-400 text-slate-950",
     title: "text-rose-200",
     line: "border-rose-700/60",
   },
   slot_8: {
-    container: "border-lime-700/70 bg-slate-900/85",
+    container: "border-lime-700/70 bg-[var(--surface)]",
     badge: "bg-lime-400 text-slate-950",
     title: "text-lime-200",
     line: "border-lime-700/60",
   },
   slot_9: {
-    container: "border-orange-700/70 bg-slate-900/85",
+    container: "border-orange-700/70 bg-[var(--surface)]",
     badge: "bg-orange-400 text-slate-950",
     title: "text-orange-200",
     line: "border-orange-700/60",
   },
   slot_10: {
-    container: "border-indigo-700/70 bg-slate-900/85",
+    container: "border-indigo-700/70 bg-[var(--surface)]",
     badge: "bg-indigo-400 text-slate-950",
     title: "text-indigo-200",
     line: "border-indigo-700/60",
@@ -276,20 +276,28 @@ export function WeeklyPlanner() {
     [plannerSections, weekDetail],
   );
   const panelClass = isDark
-    ? "border-slate-700 bg-slate-900/92 text-slate-100 shadow-slate-950/30"
+    ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-[color:var(--background)]/30"
     : "border-[#d9e4de] bg-white text-[#172b29] shadow-slate-900/5";
   const mutedPanelClass = isDark
-    ? "border-slate-700 bg-slate-800/78 text-slate-100"
+    ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)]"
     : "border-[#d9e4de] bg-[#f1f5f2] text-[#172b29]";
   const inputClass = isDark
-    ? "w-full min-h-10 rounded-lg border border-slate-500 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-2 ring-transparent placeholder:text-slate-400 focus:border-teal-300 focus:ring-teal-400/60"
+    ? "w-full min-h-10 rounded-lg border border-[color-mix(in_srgb,var(--muted-foreground)_60%,var(--surface))] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-2 ring-transparent placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/60"
     : "w-full min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-2 ring-transparent placeholder:text-slate-500 focus:border-teal-600 focus:ring-teal-500/35";
   const pageClass = isDark
-    ? "bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-100"
+    ? "bg-[var(--background)] text-[var(--foreground)]"
     : "bg-[#f7f8f5] text-[#172b29]";
   const navigationLinkClass = isDark
-    ? "border-slate-600 bg-slate-800 text-slate-100 hover:border-teal-400 hover:bg-slate-700 hover:text-teal-200 active:bg-slate-700"
+    ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)] hover:border-[var(--primary)] hover:bg-[var(--hover-surface)] hover:text-[var(--primary)] active:bg-[var(--hover-surface)]"
     : "border-[#d9e4de] bg-white text-[#172b29] hover:border-teal-700 hover:text-teal-800 active:bg-[#f1f5f2]";
+
+  const primaryFillClass = isDark
+    ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
+    : "bg-teal-700 text-white";
+  const primaryActionClass = isDark
+    ? `${primaryFillClass} hover:bg-[var(--primary)]/85 disabled:bg-[var(--surface-muted)] disabled:text-[var(--muted-foreground)]`
+    : `${primaryFillClass} hover:bg-teal-800 disabled:bg-slate-400`;
+  const sheetBackdropClass = isDark ? "bg-[var(--background)]/60" : "bg-slate-950/60";
 
   function formatWeekChoiceLabel(week: WeekItem): string {
     const offset = weekOffsetFromCurrent(week);
@@ -1002,7 +1010,7 @@ export function WeeklyPlanner() {
         type="button"
         onClick={() => void saveWeek()}
         disabled={!weekDetail || isSaving}
-        className={`min-h-11 min-w-0 rounded-xl bg-teal-700 font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400 ${
+        className={`min-h-11 min-w-0 rounded-xl font-semibold shadow-sm transition disabled:cursor-not-allowed ${primaryActionClass} ${
           compact ? "px-3 py-2 text-xs" : "px-4 py-2 text-sm"
         } ${className}`}
       >
@@ -1106,10 +1114,10 @@ export function WeeklyPlanner() {
             <AppearanceToggle />
           </div>
         </div>
-        <p className={`mt-2 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+        <p className={`mt-2 text-sm ${isDark ? "text-[var(--muted-foreground)]" : "text-slate-600"}`}>
           {t("summaryDescription")}
         </p>
-        <p className={`mt-1 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+        <p className={`mt-1 text-xs ${isDark ? "text-[var(--muted-foreground)]" : "text-slate-500"}`}>
           {t("durationInputMinutes")}
         </p>
       </section>
@@ -1120,19 +1128,19 @@ export function WeeklyPlanner() {
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2
             className={`text-sm font-semibold uppercase ${
-              isDark ? "text-slate-400" : "text-slate-500"
+              isDark ? "text-[var(--muted-foreground)]" : "text-slate-500"
             }`}
           >
             {t("weeks")}
           </h2>
           {totals ? (
-            <span className={`text-xs font-semibold ${isDark ? "text-teal-200" : "text-teal-700"}`}>
+            <span className={`text-xs font-semibold ${isDark ? "text-[var(--primary)]" : "text-teal-700"}`}>
               {formatDuration(totals.week_total_minutes, language)}
             </span>
           ) : null}
         </div>
         {isLoadingWeeks ? (
-          <p className={isDark ? "text-slate-300" : "text-slate-600"}>{t("loadingWeeks")}</p>
+          <p className={isDark ? "text-[var(--muted-foreground)]" : "text-slate-600"}>{t("loadingWeeks")}</p>
         ) : (
           <div
             ref={weekRailRef}
@@ -1151,14 +1159,14 @@ export function WeeklyPlanner() {
                   className={`min-h-16 min-w-40 rounded-xl border px-4 py-3 text-start text-sm transition md:min-w-0 ${
                     isSelected
                       ? isDark
-                        ? "border-teal-500 bg-teal-500 text-slate-950 shadow-lg shadow-teal-950/40"
+                        ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)] shadow-lg shadow-[color:var(--background)]/40"
                         : "border-teal-600 bg-teal-700 text-white"
                       : week.is_current
                         ? isDark
-                          ? "border-amber-600 bg-amber-900/35 text-amber-100"
+                          ? "border-amber-600 bg-[var(--surface-muted)] text-amber-100"
                           : "border-amber-500 bg-amber-50 text-amber-900"
                         : isDark
-                          ? "border-slate-600 bg-slate-800 text-slate-200 hover:border-teal-400 hover:text-teal-300"
+                          ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
                           : "border-slate-300 bg-white text-slate-700 hover:border-teal-400 hover:text-teal-700"
                   }`}
                 >
@@ -1204,7 +1212,7 @@ export function WeeklyPlanner() {
                     {formatDuration(totals.by_section_minutes[section.id], language)}
                   </span>
                 ))}
-                <span className="rounded-full bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white">
+                <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${primaryFillClass}`}>
                   {t("total")}: {formatDuration(totals.week_total_minutes, language)}
                 </span>
               </>
@@ -1214,7 +1222,7 @@ export function WeeklyPlanner() {
               onClick={() => setIsTemplateSheetOpen(true)}
               className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                 isDark
-                  ? "border-slate-600 bg-slate-800 text-slate-200 hover:border-teal-400 hover:text-teal-200"
+                  ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
                   : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
               }`}
             >
@@ -1230,7 +1238,7 @@ export function WeeklyPlanner() {
               <div
                 key={section.id}
                 className={`h-24 animate-pulse rounded-2xl border ${
-                  isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-100"
+                  isDark ? "border-[var(--border)] bg-[var(--surface-muted)]" : "border-slate-200 bg-slate-100"
                 }`}
               />
             ))}
@@ -1279,7 +1287,7 @@ export function WeeklyPlanner() {
               >
                 {t("minimizeAllDays")}
               </button>
-              {openDayDates.length === 0 ? <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>{t("weekOverviewHint")}</p> : null}
+              {openDayDates.length === 0 ? <p className={`text-sm ${isDark ? "text-[var(--muted-foreground)]" : "text-slate-600"}`}>{t("weekOverviewHint")}</p> : null}
               <span className="sr-only" role="status" aria-live="polite">{dayAnnouncement}</span>
             </div>
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
@@ -1296,10 +1304,10 @@ export function WeeklyPlanner() {
                       className={`min-h-14 min-w-28 rounded-xl border px-3 py-2 text-start transition ${
                         isActiveDay
                           ? isDark
-                            ? "border-teal-400 bg-teal-500 text-slate-950"
+                            ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
                             : "border-teal-600 bg-teal-700 text-white"
                           : isDark
-                            ? "border-slate-700 bg-slate-900 text-slate-200"
+                            ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
                             : "border-slate-200 bg-white text-slate-700"
                       }`}
                     >
@@ -1314,10 +1322,10 @@ export function WeeklyPlanner() {
                         className={`mt-1 block h-1.5 w-1.5 rounded-full ${
                           dayHasContent
                             ? isActiveDay
-                              ? "bg-white"
+                              ? isDark ? "bg-[var(--primary-foreground)]" : "bg-white"
                               : "bg-emerald-500"
                             : isDark
-                              ? "bg-slate-600"
+                              ? "bg-[var(--border)]"
                               : "bg-slate-300"
                         }`}
                       />
@@ -1342,7 +1350,7 @@ export function WeeklyPlanner() {
                     className={`min-w-0 rounded-2xl border p-4 ${
                       isActiveDay
                         ? isDark
-                          ? "border-teal-500 bg-slate-900 text-slate-100"
+                          ? "border-[var(--primary)] bg-[var(--surface)] text-[var(--foreground)]"
                           : "border-teal-500 bg-white text-slate-900"
                         : mutedPanelClass
                     }`}
@@ -1355,7 +1363,7 @@ export function WeeklyPlanner() {
                       aria-describedby={daySummaryId}
                       aria-controls={dayBodyId}
                       className={`flex min-h-11 w-full scroll-mt-24 items-center justify-between gap-3 rounded-lg border-b pb-3 text-start outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
-                        isDark ? "border-slate-700" : "border-slate-200"
+                        isDark ? "border-[var(--border)]" : "border-slate-200"
                       }`}
                       aria-expanded={isDayOpen}
                     >
@@ -1366,18 +1374,18 @@ export function WeeklyPlanner() {
                         <span className="block text-base font-semibold">
                           {t(WEEKDAY_TRANSLATION_KEYS[day.weekday_name] ?? "saturday")}
                         </span>
-                        <span className={`mt-1 block text-xs ${isDark ? "text-slate-300" : "text-slate-500"}`}>
+                        <span className={`mt-1 block text-xs ${isDark ? "text-[var(--muted-foreground)]" : "text-slate-500"}`}>
                           {formatReadableShamsiDate(day.date, language)}
                         </span>
                       </span>
                       <span className="flex min-w-0 max-w-[55%] flex-col items-end gap-1 text-end">
-                        <span className="rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${primaryFillClass}`}>
                           {formatDuration(dayTotal, language)}
                         </span>
-                        <span className={`text-[11px] font-medium ${dayHasContent ? isDark ? "text-emerald-300" : "text-emerald-700" : isDark ? "text-slate-400" : "text-slate-500"}`}>
+                        <span className={`text-[11px] font-medium ${dayHasContent ? isDark ? "text-emerald-300" : "text-emerald-700" : isDark ? "text-[var(--muted-foreground)]" : "text-slate-500"}`}>
                           {dayHasContent ? t("sectionDetails") : t("noDayDetailsYet")}
                         </span>
-                        <span className={`text-xs font-semibold ${isDark ? "text-teal-300" : "text-teal-700"}`}>
+                        <span className={`text-xs font-semibold ${isDark ? "text-[var(--primary)]" : "text-teal-700"}`}>
                           <span aria-hidden="true">{isDayOpen ? "−" : "+"} </span>{isDayOpen ? t("minimizeDay") : t("showDay")}
                         </span>
                       </span>
@@ -1387,7 +1395,7 @@ export function WeeklyPlanner() {
                       <div
                         className={`rounded-xl border p-3 ${
                           isDark
-                            ? "border-slate-700 bg-slate-950/70"
+                            ? "border-[var(--border)] bg-[var(--surface-muted)]"
                             : "border-slate-200 bg-slate-50"
                         }`}
                       >
@@ -1406,7 +1414,7 @@ export function WeeklyPlanner() {
                       <div
                         className={`rounded-xl border p-3 ${
                           isDark
-                            ? "border-slate-700 bg-slate-950/70"
+                            ? "border-[var(--border)] bg-[var(--surface-muted)]"
                             : "border-slate-200 bg-slate-50"
                         }`}
                       >
@@ -1415,7 +1423,7 @@ export function WeeklyPlanner() {
                           <button
                             type="button"
                             onClick={() => openNewScheduleEntry(day)}
-                            className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
+                            className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${primaryActionClass}`}
                           >
                             + {t("addScheduleEntry")}
                           </button>
@@ -1424,7 +1432,7 @@ export function WeeklyPlanner() {
                           <p
                             className={`rounded-lg border px-3 py-2 text-sm ${
                               isDark
-                                ? "border-slate-700 text-slate-300"
+                                ? "border-[var(--border)] text-[var(--muted-foreground)]"
                                 : "border-slate-200 text-slate-600"
                             }`}
                           >
@@ -1443,12 +1451,12 @@ export function WeeklyPlanner() {
                                   onClick={() => openEditScheduleEntry(day.date, entry)}
                                   className={`grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border px-3 py-2 text-start transition ${
                                     isDark
-                                      ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-teal-400"
+                                      ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
                                       : "border-slate-200 bg-white text-slate-800 hover:border-teal-500"
                                   }`}
                                   aria-label={`${t("editScheduleEntry")}, ${entry.start_time} ${entry.end_time}, ${entry.title}`}
                                 >
-                                  <span className="rounded-md bg-teal-700 px-2 py-1 text-xs font-bold text-white">
+                                  <span className={`rounded-md px-2 py-1 text-xs font-bold ${primaryFillClass}`}>
                                     {entry.start_time}-{entry.end_time}
                                   </span>
                                   <span className="min-w-0">
@@ -1458,7 +1466,7 @@ export function WeeklyPlanner() {
                                     {linkedSection || entry.note ? (
                                       <span
                                         className={`mt-1 block truncate text-xs ${
-                                          isDark ? "text-slate-300" : "text-slate-500"
+                                          isDark ? "text-[var(--muted-foreground)]" : "text-slate-500"
                                         }`}
                                       >
                                         {linkedSection ? linkedSection.label : ""}
@@ -1481,7 +1489,7 @@ export function WeeklyPlanner() {
                           <section
                             key={section.id}
                             aria-label={section.label}
-                            className={`min-w-0 rounded-2xl border shadow-sm ${isDark ? "border-slate-700 bg-slate-950/70" : "border-[#d9e4de] bg-white"}`}
+                            className={`min-w-0 rounded-2xl border shadow-sm ${isDark ? "border-[var(--border)] bg-[var(--surface)]" : "border-[#d9e4de] bg-white"}`}
                           >
                             <button
                               ref={(element) => { sectionButtonsRef.current[`${day.date}-${section.id}`] = element; }}
@@ -1492,7 +1500,7 @@ export function WeeklyPlanner() {
                               className="flex min-h-20 w-full scroll-mt-24 items-center justify-between gap-3 rounded-2xl px-3 py-3 text-start outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                             >
                               <span className="min-w-0">
-                                <span className={`block text-sm font-bold ${isDark ? "text-teal-200" : "text-teal-900"}`}>
+                                <span className={`block text-sm font-bold ${isDark ? "text-[var(--primary)]" : "text-teal-900"}`}>
                                   {section.label}
                                 </span>
                                 <span className="mt-1 block truncate text-xs opacity-75">
@@ -1500,13 +1508,13 @@ export function WeeklyPlanner() {
                                 </span>
                               </span>
                               <span className="flex shrink-0 items-center gap-2">
-                                <span className={`text-xs font-semibold ${isDark ? "text-teal-200" : "text-teal-800"}`}>
+                                <span className={`text-xs font-semibold ${isDark ? "text-[var(--primary)]" : "text-teal-800"}`}>
                                   {formatDuration(sectionData.duration_minutes, language)}
                                 </span>
                                 <span aria-hidden="true" className="text-xl leading-none">{isOpen ? "−" : "+"}</span>
                               </span>
                             </button>
-                            {isOpen ? <div id={sectionBodyId} className={`grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 border-t p-3 ${isDark ? "border-slate-700" : "border-[#d9e4de]"}`}>
+                            {isOpen ? <div id={sectionBodyId} className={`grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 border-t p-3 ${isDark ? "border-[var(--border)]" : "border-[#d9e4de]"}`}>
                               <h5 className="text-sm font-semibold">{t("timeForSection")}</h5>
                               <label className="block min-w-0">
                                 {renderFieldLabel(t("minutes"))}
@@ -1531,7 +1539,7 @@ export function WeeklyPlanner() {
                                     onClick={() => adjustDuration(day.date, section.id, minutes)}
                                     className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition ${
                                       isDark
-                                        ? "border-slate-600 bg-slate-950/70 text-slate-100 hover:border-teal-400"
+                                        ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
                                         : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
                                     }`}
                                   >
@@ -1543,7 +1551,7 @@ export function WeeklyPlanner() {
                                   onClick={() => updateDuration(day.date, section.id, 0)}
                                   className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition ${
                                     isDark
-                                      ? "border-slate-600 bg-slate-950/70 text-slate-100 hover:border-rose-400"
+                                      ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-rose-400"
                                       : "border-slate-300 bg-white text-slate-700 hover:border-rose-400"
                                   }`}
                                 >
@@ -1563,7 +1571,7 @@ export function WeeklyPlanner() {
                                   className={inputClass}
                                 />
                               </label>
-                              <button type="button" onClick={(event) => openWritingView({ dayDate: day.date, sectionId: section.id, field: "goal" }, event.currentTarget)} className={`min-h-11 justify-self-start text-xs font-semibold underline underline-offset-4 ${isDark ? "text-teal-300" : "text-teal-700"}`}>
+                              <button type="button" onClick={(event) => openWritingView({ dayDate: day.date, sectionId: section.id, field: "goal" }, event.currentTarget)} className={`min-h-11 justify-self-start text-xs font-semibold underline underline-offset-4 ${isDark ? "text-[var(--primary)]" : "text-teal-700"}`}>
                                 {t("openWritingView")}
                               </button>
                               <label className="block min-w-0">
@@ -1579,7 +1587,7 @@ export function WeeklyPlanner() {
                                   className={inputClass}
                                 />
                               </label>
-                              <button type="button" onClick={(event) => openWritingView({ dayDate: day.date, sectionId: section.id, field: "note" }, event.currentTarget)} className={`min-h-11 justify-self-start text-xs font-semibold underline underline-offset-4 ${isDark ? "text-teal-300" : "text-teal-700"}`}>
+                              <button type="button" onClick={(event) => openWritingView({ dayDate: day.date, sectionId: section.id, field: "note" }, event.currentTarget)} className={`min-h-11 justify-self-start text-xs font-semibold underline underline-offset-4 ${isDark ? "text-[var(--primary)]" : "text-teal-700"}`}>
                                 {t("openWritingView")}
                               </button>
                             </div> : null}
@@ -1617,7 +1625,7 @@ export function WeeklyPlanner() {
                 <div className={`mt-3 border-t pt-2 ${sectionTheme[section.id].line}`}>
                   <p
                     className={`text-xs uppercase tracking-wide font-semibold ${
-                      isDark ? "text-slate-300" : "text-slate-500"
+                      isDark ? "text-[var(--muted-foreground)]" : "text-slate-500"
                     }`}
                   >
                     {t("notes")}
@@ -1626,7 +1634,7 @@ export function WeeklyPlanner() {
                     <p
                       className={`mt-2 rounded-lg border px-3 py-2 text-sm font-medium ${
                         isDark
-                          ? "border-slate-600 bg-slate-800/60 text-slate-200"
+                          ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)]"
                           : "border-slate-200 bg-white/80 text-slate-600"
                       }`}
                     >
@@ -1639,7 +1647,7 @@ export function WeeklyPlanner() {
                           key={`${section.id}-${item.dayDate}-${index}`}
                           className={`rounded-lg border px-3 py-2 text-sm font-medium leading-6 ${
                             isDark
-                              ? "border-slate-600 bg-slate-800/60 text-slate-100"
+                              ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)]"
                               : "border-slate-200 bg-white/80 text-slate-800"
                           }`}
                         >
@@ -1654,8 +1662,8 @@ export function WeeklyPlanner() {
                 </div>
               </div>
             ))}
-            <div className="rounded-xl bg-teal-700 p-3 text-white">
-              <p className="text-xs uppercase tracking-wide text-teal-100">{t("total")}</p>
+            <div className={`rounded-xl p-3 ${primaryFillClass}`}>
+              <p className={`text-xs uppercase tracking-wide ${isDark ? "text-[var(--primary-foreground)]" : "text-teal-100"}`}>{t("total")}</p>
               <p className="mt-1 text-lg font-semibold">
                 {formatDuration(totals.week_total_minutes, language)}
               </p>
@@ -1667,7 +1675,7 @@ export function WeeklyPlanner() {
         <div
           className={`fixed inset-x-0 bottom-0 z-30 w-screen max-w-full border-t px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl md:hidden ${
             isDark
-              ? "border-slate-700 bg-slate-950/95"
+              ? "border-[var(--border)] bg-[var(--surface)]"
               : "border-slate-200 bg-white/95"
           }`}
         >
@@ -1684,7 +1692,7 @@ export function WeeklyPlanner() {
                 disabled={!weekDetail || isSaving}
                 className={`min-w-0 rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   isDark
-                    ? "border-slate-600 bg-slate-900 text-slate-100 hover:border-teal-400"
+                    ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
                     : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
                 }`}
               >
@@ -1697,7 +1705,7 @@ export function WeeklyPlanner() {
       ) : null}
       {isTemplateSheetOpen ? (
         <div
-          className="fixed inset-0 z-40 flex items-end bg-slate-950/60 px-4 py-4 sm:items-center sm:justify-center"
+          className={`fixed inset-0 z-40 flex items-end ${sheetBackdropClass} px-4 py-4 sm:items-center sm:justify-center`}
           role="dialog"
           aria-modal="true"
           aria-label={t("templates")}
@@ -1710,7 +1718,7 @@ export function WeeklyPlanner() {
                 onClick={() => setIsTemplateSheetOpen(false)}
                 className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
                   isDark
-                    ? "border-slate-600 text-slate-200 hover:border-teal-400"
+                    ? "border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]"
                     : "border-slate-300 text-slate-700 hover:border-teal-500"
                 }`}
               >
@@ -1729,7 +1737,7 @@ export function WeeklyPlanner() {
                 type="button"
                 onClick={() => void saveCurrentWeekAsTemplate()}
                 disabled={!templateName.trim()}
-                className="min-h-10 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className={`min-h-10 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed ${primaryActionClass}`}
               >
                 {t("saveAsTemplate")}
               </button>
@@ -1740,7 +1748,7 @@ export function WeeklyPlanner() {
                   <div
                     key={template.id}
                     className={`flex items-center gap-2 rounded-lg border p-3 ${
-                      isDark ? "border-slate-700 bg-slate-950/60" : "border-slate-200 bg-white"
+                      isDark ? "border-[var(--border)] bg-[var(--surface)]" : "border-slate-200 bg-white"
                     }`}
                   >
                     <button
@@ -1749,7 +1757,7 @@ export function WeeklyPlanner() {
                       className="min-h-10 min-w-0 flex-1 text-start"
                     >
                       <span className="block truncate text-sm font-semibold">{template.name}</span>
-                      <span className={`mt-1 block text-xs ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                      <span className={`mt-1 block text-xs ${isDark ? "text-[var(--muted-foreground)]" : "text-slate-600"}`}>
                         {template.days.length} {t("day").toLowerCase()} · {template.weekly_goal || template.weekly_note || t("noNote")}
                       </span>
                     </button>
@@ -1758,7 +1766,7 @@ export function WeeklyPlanner() {
                       onClick={() => void removeWeekTemplate(template)}
                       className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
                         isDark
-                          ? "border-slate-600 text-slate-200 hover:border-rose-400"
+                          ? "border-[var(--border)] text-[var(--foreground)] hover:border-rose-400"
                           : "border-slate-300 text-slate-700 hover:border-rose-500"
                       }`}
                     >
@@ -1772,7 +1780,7 @@ export function WeeklyPlanner() {
         </div>
       ) : null}
       {scheduleDraft ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-slate-950/60 px-4 py-4 sm:items-center sm:justify-center">
+        <div className={`fixed inset-0 z-40 flex items-end ${sheetBackdropClass} px-4 py-4 sm:items-center sm:justify-center`}>
           <div className={`w-full max-w-lg rounded-2xl border p-4 shadow-2xl ${panelClass}`}>
             <h2 className="text-lg font-semibold">
               {scheduleDraft.id ? t("editScheduleEntry") : t("addScheduleEntry")}
@@ -1866,7 +1874,7 @@ export function WeeklyPlanner() {
               <button
                 type="button"
                 onClick={saveScheduleDraft}
-                className="rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800"
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${primaryActionClass}`}
               >
                 {t("save")}
               </button>
@@ -1876,7 +1884,7 @@ export function WeeklyPlanner() {
                   onClick={deleteScheduleEntry}
                   className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
                     isDark
-                      ? "border-rose-500/70 bg-slate-900 text-rose-200 hover:bg-rose-950/40"
+                      ? "border-rose-500/70 bg-[var(--surface)] text-rose-200 hover:bg-rose-950/40"
                       : "border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
                   }`}
                 >
@@ -1888,7 +1896,7 @@ export function WeeklyPlanner() {
                 onClick={closeScheduleDraft}
                 className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
                   isDark
-                    ? "border-slate-600 bg-slate-900 text-slate-100 hover:border-teal-400"
+                    ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
                     : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
                 }`}
               >
@@ -1899,10 +1907,10 @@ export function WeeklyPlanner() {
         </div>
       ) : null}
       {pendingWeekStart ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-slate-950/60 px-4 py-4 sm:items-center sm:justify-center">
+        <div className={`fixed inset-0 z-40 flex items-end ${sheetBackdropClass} px-4 py-4 sm:items-center sm:justify-center`}>
           <div className={`w-full max-w-md rounded-2xl border p-4 shadow-2xl ${panelClass}`}>
             <h2 className="text-lg font-semibold">{t("unsavedWeekTitle")}</h2>
-            <p className={`mt-2 text-sm leading-6 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+            <p className={`mt-2 text-sm leading-6 ${isDark ? "text-[var(--muted-foreground)]" : "text-slate-600"}`}>
               {t("unsavedWeekDescription")}
             </p>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -1910,7 +1918,7 @@ export function WeeklyPlanner() {
                 type="button"
                 onClick={() => void saveAndSwitchWeek()}
                 disabled={isSaving}
-                className="rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed ${primaryActionClass}`}
               >
                 {isSaving ? t("saving") : t("saveAndSwitch")}
               </button>
@@ -1920,7 +1928,7 @@ export function WeeklyPlanner() {
                 disabled={isSaving}
                 className={`rounded-xl border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   isDark
-                    ? "border-rose-500/70 bg-slate-900 text-rose-200 hover:bg-rose-950/40"
+                    ? "border-rose-500/70 bg-[var(--surface)] text-rose-200 hover:bg-rose-950/40"
                     : "border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
                 }`}
               >
@@ -1932,7 +1940,7 @@ export function WeeklyPlanner() {
                 disabled={isSaving}
                 className={`rounded-xl border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   isDark
-                    ? "border-slate-600 bg-slate-900 text-slate-100 hover:border-teal-400"
+                    ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
                     : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
                 }`}
               >
@@ -1949,19 +1957,19 @@ export function WeeklyPlanner() {
           aria-label={`${writingSectionLabel ?? ""} · ${t(writingView.field)}`}
           onKeyDown={handleWritingKeyDown}
           className={`fixed inset-0 z-50 flex flex-col gap-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] ${
-            isDark ? "bg-slate-950 text-slate-100" : "bg-[#f7f8f5] text-[#172b29]"
+            isDark ? "bg-[var(--background)] text-[var(--foreground)]" : "bg-[#f7f8f5] text-[#172b29]"
           }`}
         >
           <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className={`truncate text-xs font-semibold ${isDark ? "text-teal-300" : "text-teal-700"}`}>{writingSectionLabel}</p>
+              <p className={`truncate text-xs font-semibold ${isDark ? "text-[var(--primary)]" : "text-teal-700"}`}>{writingSectionLabel}</p>
               <h2 className="text-xl font-bold">{t(writingView.field)}</h2>
             </div>
             <button
               ref={writingDoneRef}
               type="button"
               onClick={closeWritingView}
-              className="min-h-11 shrink-0 rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500"
+              className={`min-h-11 shrink-0 rounded-xl px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500 ${primaryFillClass}`}
             >
               {t("doneWriting")}
             </button>

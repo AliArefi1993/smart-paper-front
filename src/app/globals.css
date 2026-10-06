@@ -9,6 +9,8 @@
   --muted-foreground: #536660;
   --primary: #0f766e;
   --primary-soft: #e7f4ef;
+  --primary-foreground: #ffffff;
+  --hover-surface: #ffffff;
 }
 
 html {
@@ -104,6 +106,8 @@ html.sp-dark {
   --muted-foreground: #b6c8c2;
   --primary: #72dbcb;
   --primary-soft: #243e39;
+  --primary-foreground: #092522;
+  --hover-surface: #30443f;
   color-scheme: dark;
 }
 
@@ -129,11 +133,11 @@ html.sp-dark .sp-appearance-toggle {
 
 html.sp-dark .sp-appearance-toggle button[aria-pressed="true"] {
   background: #72dbcb;
-  color: #092522;
+  color: var(--primary-foreground);
 }
 
 html.sp-dark .sp-appearance-toggle button[aria-pressed="false"]:hover {
-  background: #30443f;
+  background: var(--hover-surface);
 }
 
 /* Existing non-Planner routes use fixed Tailwind colors. Keep their dark roles together. */
