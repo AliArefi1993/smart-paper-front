@@ -41,7 +41,7 @@ export function SettingsView() {
     [sections],
   );
   const hasBlankLabel = sections.some((section) => !section.label.trim());
-  const canSave = sections.length > 0 && activeCount >= 1 && !hasBlankLabel && !isSaving;
+  const canSave = sections.length > 0 && !isSaving;
 
   useEffect(() => {
     let cancelled = false;
@@ -125,10 +125,12 @@ export function SettingsView() {
     setError("");
     if (activeCount < 1) {
       setError(t("atLeastOneSectionActive"));
+      document.querySelector<HTMLInputElement>('[data-section-active] input')?.focus();
       return;
     }
     if (hasBlankLabel) {
       setError(t("sectionLabelsRequired"));
+      document.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus();
       return;
     }
 
@@ -222,7 +224,7 @@ export function SettingsView() {
                 type="button"
                 onClick={() => void handleSave()}
                 disabled={!canSave}
-                className="rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-[#536660]"
+                className="min-h-12 rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-[#536660]"
               >
                 {isSaving ? t("saving") : t("saveSettings")}
               </button>
@@ -245,7 +247,7 @@ export function SettingsView() {
                       aria-invalid={!section.label.trim()}
                     />
                   </label>
-                  <label className="flex items-center justify-between gap-3 rounded-xl border border-[#d9e4de] bg-white px-4 py-3 md:min-w-48">
+                  <label data-section-active className="flex items-center justify-between gap-3 rounded-xl border border-[#d9e4de] bg-white px-4 py-3 md:min-w-48">
                     <span className="text-sm font-semibold text-[#172b29]">
                       {section.active ? t("active") : t("inactive")}
                     </span>
@@ -303,6 +305,12 @@ export function SettingsView() {
                   className="mt-2 w-full rounded-xl border border-[#b6c9bf] bg-white px-4 py-3 text-sm text-[#172b29] outline-none focus:border-teal-700"
                 />
               </label>
+            </div>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#d9e4de] pt-5">
+              <div aria-live="polite" className="text-sm">
+                {hasBlankLabel ? <p className="font-semibold text-rose-700">{t("sectionLabelsRequired")}</p> : activeCount < 1 ? <p className="font-semibold text-rose-700">{t("atLeastOneSectionActive")}</p> : error ? <p className="font-semibold text-rose-700">{error}</p> : message ? <p className="font-semibold text-emerald-800">{message}</p> : hasUnsavedChanges ? <p className="text-[#536660]">{isPersian ? "تنظیمات ذخیره‌نشده" : "Unsaved settings"}</p> : null}
+              </div>
+              <button type="button" onClick={() => void handleSave()} disabled={!canSave} className="min-h-12 w-full rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-[#536660] sm:w-auto">{isSaving ? t("saving") : t("saveSettings")}</button>
             </div>
           </>
         ) : null}

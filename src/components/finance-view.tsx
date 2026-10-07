@@ -208,6 +208,9 @@ export function FinanceView() {
   }
 
   async function deleteIncome(entryId: number) {
+    if (deletingEntryId !== null || !window.confirm(isPersian
+      ? "این درآمد حذف شود؟ این درآمد حذف می‌شود. این کار قابل بازگشت نیست."
+      : "Delete this income entry? This entry will be removed. This cannot be undone.")) return;
     setDeletingEntryId(entryId);
     setError("");
     setMessage("");
@@ -368,7 +371,7 @@ export function FinanceView() {
                   type="button"
                   onClick={() => void saveGoal()}
                   disabled={isSavingGoal}
-                  className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                  className="min-h-12 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
                 >
                   {isSavingGoal ? t("saving") : t("saveGoal")}
                 </button>
@@ -434,7 +437,7 @@ export function FinanceView() {
                 type="button"
                 onClick={() => void addIncome()}
                 disabled={isAddingIncome}
-                className="mt-4 rounded-lg bg-teal-700 px-5 py-3 text-base font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                className="mt-4 min-h-12 rounded-xl bg-teal-700 px-5 py-3 text-base font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
               >
                 {isAddingIncome ? t("adding") : t("addIncome")}
               </button>
@@ -491,7 +494,7 @@ export function FinanceView() {
                             type="button"
                             onClick={() => void saveEdit(entry.id)}
                             disabled={isSavingEdit}
-                            className="rounded-md border border-emerald-500/60 px-2 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-800/15 disabled:opacity-60"
+                            className="min-h-12 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
                           >
                             {isSavingEdit ? t("saving") : t("save")}
                           </button>

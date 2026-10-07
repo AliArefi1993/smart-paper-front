@@ -5,10 +5,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
 import { dailyIdeaNote, readIdeaNotes, writeIdeaNotes, type IdeaNote } from "@/lib/idea-notes";
+import { commitIdeaDraft, IdeaDraftCommitError, ideaDraftIssue, isIdeaDraftDirty, newIdeaDraft, readIdeaDraft, writeIdeaDraft, IDEA_DRAFT_KEY, type IdeaDraft } from "@/lib/idea-draft";
 import { useLanguage } from "@/lib/use-language";
 
+// Failed device writes survive SPA navigation in this process only.
+let failedDraft: IdeaDraft | null = null;
+
 const SPARKS = ["ideasSpark1", "ideasSpark2", "ideasSpark3", "ideasSpark4"] as const;
-const DRAFT_KEY = "smart-paper.local.idea-draft";
+
 
 function dayKey(): string {
   const now = new Date();
@@ -24,9 +28,12 @@ function scatterScore(id: string, day: string): number {
 export function IdeaSpace() {
   const { isPersian, language, t } = useLanguage();
   const [notes, setNotes] = useState<IdeaNote[]>([]);
-  const [body, setBody] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [parentId, setParentId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<IdeaDraft>(newIdeaDraft);
+  const [draftError, setDraftError] = useState<"load" | "write" | "cleanup" | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const body = draft.body;
+  const editingId = draft.mode === "edit" ? draft.source?.id : null;
+  const parentId = draft.mode === "branch" ? draft.source?.id : null;
   const [sparkIndex, setSparkIndex] = useState<number | null>(null);
   const [sparksOpen, setSparksOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -36,26 +43,47 @@ export function IdeaSpace() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const localMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
 
-  useEffect(() => {
-    if (!localMode) return;
-    const timeout = window.setTimeout(() => {
-      try {
-        setNotes(readIdeaNotes(window.localStorage));
-        setBody(window.localStorage.getItem(DRAFT_KEY) ?? "");
-        setLoaded(true);
+  const c = (en: string, fa: string) => isPersian ? fa : en;
+
+  function loadWriting() {
+    try {
+      const saved = readIdeaNotes(window.localStorage);
+      const retainedInSession = failedDraft !== null;
+      const restored = failedDraft ?? readIdeaDraft(window.localStorage);
+      setNotes(saved);
+      setDraft(restored);
+      setLoaded(true);
+      setDraftError(retainedInSession ? "write" : null);
+      if (ideaDraftIssue(restored, saved) === "committed") {
+        try { window.localStorage.removeItem(IDEA_DRAFT_KEY); setDraft(newIdeaDraft()); failedDraft = null; setMessage(t("ideasSaved")); }
+        catch { setDraftError("cleanup"); }
+      } else if (retainedInSession) {
+        setMessage(c("Unfinished writing kept in this session. It is not a saved thought yet.", "نوشته ناتمام در این نشست حفظ شد. هنوز فکر ذخیره‌شده نیست."));
+      } else if (restored.body || restored.mode !== "new") {
+        setMessage(restored.mode === "edit"
+          ? c("Edit draft restored. Changes are not saved to the note yet.", "پیش‌نویس ویرایش بازیابی شد. تغییرات هنوز در یادداشت ذخیره نشده‌اند.")
+          : restored.mode === "branch"
+            ? c("Branch draft restored. It is not a saved thought yet.", "پیش‌نویس شاخه بازیابی شد. هنوز فکر ذخیره‌شده نیست.")
+            : c("New draft restored. It is not a saved thought yet.", "پیش‌نویس تازه بازیابی شد. هنوز فکر ذخیره‌شده نیست."));
       }
-      catch (cause) { setError(cause instanceof Error ? cause.message : "Idea notes could not be loaded."); }
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [localMode]);
+    } catch { setDraftError("load"); }
+  }
 
   useEffect(() => {
-    if (!loaded || !localMode || editingId) return;
-    try {
-      if (body) window.localStorage.setItem(DRAFT_KEY, body);
-      else window.localStorage.removeItem(DRAFT_KEY);
-    } catch { /* Saving the note will show a storage error if the device is full. */ }
-  }, [body, editingId, loaded, localMode]);
+    if (!localMode) return;
+    const timeout = window.setTimeout(loadWriting, 0);
+    return () => window.clearTimeout(timeout);
+    // Loading runs only on mount; changing language must not replace writing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localMode]);
+
+  function updateDraft(next: IdeaDraft) {
+    setDraft(next);
+    setMessage("");
+    setSaveFailed(false);
+    try { writeIdeaDraft(window.localStorage, next); failedDraft = null; setDraftError(null); }
+    catch { failedDraft = next; setDraftError("write"); }
+  }
 
   const today = dayKey();
   const featured = useMemo(() => dailyIdeaNote(notes, today), [notes, today]);
@@ -64,66 +92,83 @@ export function IdeaSpace() {
     return notes.filter((note) => !needle || note.body.toLocaleLowerCase().includes(needle))
       .sort((a, b) => scatterScore(a.id, today) - scatterScore(b.id, today));
   }, [notes, query, today]);
-  const parent = notes.find((note) => note.id === parentId);
+  const parent = draft.mode === "branch" ? draft.source : null;
+  const issue = ideaDraftIssue(draft, notes);
+  const committed = issue === "committed";
+  const needsDecision = issue === "missing" || issue === "conflict";
+  const latest = notes.find((note) => note.id === (draft.source?.id ?? draft.receipt?.id));
 
-  function persist(next: IdeaNote[], success: string): boolean {
+  function resetComposer() {
+    if (isIdeaDraftDirty(draft) && !committed && !window.confirm(c(
+      "Discard unsaved writing? Continuing discards current writing. Keep editing to save it first.",
+      "نوشته ذخیره‌نشده کنار گذاشته شود؟ ادامه دادن نوشته فعلی را کنار می‌گذارد. برای ذخیره، ابتدا ویرایش را ادامه دهید."))) return;
+    try { window.localStorage.removeItem(IDEA_DRAFT_KEY); }
+    catch { setDraftError(committed ? "cleanup" : "write"); return; }
+    setDraft(newIdeaDraft());
+    failedDraft = null;
+    setDraftError(null);
+    setSaveFailed(false);
+    setMessage("");
+    setSparkIndex(null);
+    setSparksOpen(false);
+  }
+
+  function saveWriting(activeDraft = draft) {
+    if (!activeDraft.body.trim() && !committed) { setError(t("ideasEmptyError")); inputRef.current?.focus(); return; }
     try {
-      writeIdeaNotes(window.localStorage, next);
-      setNotes(next);
+      const current = readIdeaNotes(window.localStorage);
+      setNotes(current);
+      const currentIssue = ideaDraftIssue(activeDraft, current);
+      if (currentIssue === "missing" || currentIssue === "conflict") return;
+      const result = commitIdeaDraft(window.localStorage, activeDraft,
+        window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`, new Date().toISOString());
+      setNotes(result.notes);
+      setDraft(result.draft);
+      failedDraft = null;
+      setDraftError(result.cleanupFailed ? "cleanup" : null);
       setError("");
-      setMessage(success);
-      return true;
+      setSaveFailed(false);
+      setMessage(result.cleanupFailed ? "" : t("ideasSaved"));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("ideasSaveError"));
+      if (cause instanceof IdeaDraftCommitError) {
+        setDraft(cause.draft);
+        failedDraft = cause.recoveryFailed ? cause.draft : null;
+        setDraftError(cause.recoveryFailed ? "write" : null);
+      }
+      setSaveFailed(true);
+      setError(t("ideasSaveError"));
       setMessage("");
-      return false;
     }
   }
 
-  function resetComposer() {
-    setBody("");
-    setEditingId(null);
-    setParentId(null);
+  function selectNote(note: IdeaNote, mode: "edit" | "branch") {
+    if (committed) { setDraftError("cleanup"); return; }
+    if (isIdeaDraftDirty(draft) && !window.confirm(c(
+      "Discard unsaved writing? Continuing discards current writing. Keep editing to save it first.",
+      "نوشته ذخیره‌نشده کنار گذاشته شود؟ ادامه دادن نوشته فعلی را کنار می‌گذارد. برای ذخیره، ابتدا ویرایش را ادامه دهید."))) return;
+    updateDraft({ version: 1, mode, body: mode === "edit" ? note.body : "", source: note, receipt: null });
+    setError("");
     setSparkIndex(null);
     setSparksOpen(false);
-  }
-
-  function saveNote(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const value = body.trim();
-    if (!value) { setError(t("ideasEmptyError")); inputRef.current?.focus(); return; }
-    const now = new Date().toISOString();
-    const next = editingId
-      ? notes.map((note) => note.id === editingId ? { ...note, body: value, updated_at: now } : note)
-      : [{ id: window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`, body: value, created_at: now, updated_at: now, parent_id: parentId }, ...notes];
-    if (persist(next, t("ideasSaved"))) resetComposer();
-  }
-
-  function editNote(note: IdeaNote) {
-    setEditingId(note.id);
-    setParentId(null);
-    setBody(note.body);
-    setSparkIndex(null);
-    setSparksOpen(false);
-    setMessage("");
     window.scrollTo({ top: 0, behavior: "smooth" });
     window.setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  function branchFrom(note: IdeaNote) {
-    setEditingId(null);
-    setParentId(note.id);
-    setBody("");
-    setSparkIndex(null);
-    setSparksOpen(false);
-    setMessage("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    window.setTimeout(() => inputRef.current?.focus(), 0);
-  }
+  function editNote(note: IdeaNote) { selectNote(note, "edit"); }
+  function branchFrom(note: IdeaNote) { selectNote(note, "branch"); }
 
   function deleteNote(note: IdeaNote) {
+    if (committed) { setDraftError("cleanup"); return; }
     if (!window.confirm(t("ideasDeleteConfirm"))) return;
-    if (persist(notes.filter((item) => item.id !== note.id), t("ideasDeleted")) && editingId === note.id) resetComposer();
+    try {
+      const next = readIdeaNotes(window.localStorage).filter((item) => item.id !== note.id);
+      writeIdeaNotes(window.localStorage, next);
+      setNotes(next);
+      setError("");
+      setMessage(t("ideasDeleted"));
+      // Keep the active draft; a missing origin/target requires an explicit
+      // independent-save decision instead of silently discarding writing.
+    } catch { setError(t("ideasSaveError")); setMessage(""); }
   }
 
   const cardClass = "rounded-[1.25rem] border border-[#d9e4de] bg-white p-5";
@@ -145,14 +190,26 @@ export function IdeaSpace() {
         {error ? <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p> : null}
         {message ? <p role="status" className="mt-5 text-sm font-semibold text-emerald-800">{message}</p> : null}
 
+        {draftError ? <div role="alert" className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+          <p>{draftError === "load" ? c("Could not read the stored draft or thoughts. Existing draft was left untouched. Retry loading before writing.", "خواندن پیش‌نویس یا فکرهای ذخیره‌شده ممکن نشد. پیش‌نویس قبلی دست‌نخورده است. پیش از نوشتن دوباره بارگذاری کنید.")
+            : draftError === "cleanup" ? c("Thought saved. Old draft cleanup failed; retry cleanup before leaving. Do not save again.", "فکر ذخیره شد. پاک‌کردن پیش‌نویس قبلی انجام نشد؛ پیش از خروج دوباره تلاش کنید. دوباره ذخیره نکنید.")
+            : c("Draft recovery could not be saved. Your writing is here, but may be lost after closing. Retry before leaving.", "پیش‌نویس برای بازیابی ذخیره نشد. نوشته اینجاست، اما ممکن است پس از بستن از دست برود. پیش از خروج دوباره تلاش کنید.")}</p>
+          {draftError === "load" ? <button type="button" onClick={loadWriting} className={`mt-3 ${smallButton}`}>{c("Retry loading", "بارگذاری دوباره")}</button>
+            : draftError === "write" ? <button type="button" onClick={() => updateDraft(draft)} className={`mt-3 ${smallButton}`}>{c("Retry draft recovery", "تلاش دوباره برای بازیابی پیش‌نویس")}</button> : null}
+        </div> : null}
         {localMode && loaded ? <>
           <section className="mt-7 rounded-[1.5rem] border border-[#d9e4de] bg-[#e7f4ef] p-4 sm:p-6" aria-labelledby="ideas-write-heading">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-800">{t("ideasEyebrow")}</p>
             <h2 id="ideas-write-heading" className="mt-2 text-2xl font-bold leading-snug text-[#172b29]">{editingId ? t("ideasEditHeading") : t("ideasWriteHeading")}</h2>
             {parent ? <p className="mt-3 rounded-xl border-s-4 border-teal-600 bg-white/80 p-3 text-sm text-[#38534b]">{t("ideasBranching")}: {parent.body.slice(0, 120)}</p> : null}
-            <form onSubmit={saveNote} className="mt-5">
+            {needsDecision ? <div role="alert" className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+              <p>{issue === "missing" ? c("The original thought is missing. Your writing is retained.", "فکر اصلی موجود نیست. نوشته حفظ شده است.") : c("The saved thought changed. Review both versions before choosing how to keep your writing.", "فکر ذخیره‌شده تغییر کرده است. پیش از انتخاب روش نگه‌داشتن نوشته، هر دو نسخه را بررسی کنید.")}</p>
+              {latest ? <details className="mt-3"><summary className="cursor-pointer font-semibold">{c("Latest saved thought", "آخرین فکر ذخیره‌شده")}</summary><p className="mt-2 whitespace-pre-wrap break-words">{latest.body}</p></details> : null}
+              <button type="button" onClick={() => { const independent = newIdeaDraft(body); updateDraft(independent); saveWriting(independent); inputRef.current?.focus(); }} className="mt-3 min-h-12 rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800">{c("Keep as new thought", "نگه‌داشتن به‌عنوان فکر تازه")}</button>
+            </div> : null}
+            <form onSubmit={(event) => { event.preventDefault(); saveWriting(); }} className="mt-5">
               <label htmlFor="idea-body" className="sr-only">{t("ideasBodyLabel")}</label>
-              <textarea id="idea-body" ref={inputRef} value={body} onChange={(event) => setBody(event.target.value)} rows={5} placeholder={t("ideasPlaceholder")} className="w-full resize-y rounded-[1.25rem] border border-[#b6cfc0] bg-white p-4 text-lg leading-relaxed text-[#173c36] placeholder:text-[#6a8178]" />
+              <textarea id="idea-body" ref={inputRef} value={body} readOnly={committed} dir="auto" onChange={(event) => updateDraft({ ...draft, body: event.target.value, receipt: null })} rows={5} placeholder={t("ideasPlaceholder")} className="w-full resize-y rounded-[1.25rem] border border-[#b6cfc0] bg-white p-4 text-lg leading-relaxed text-[#173c36] placeholder:text-[#6a8178]" />
               <div className="mt-4">
                 <button type="button" aria-expanded={sparksOpen} aria-controls="idea-sparks" onClick={() => setSparksOpen((open) => !open)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-2 text-start text-sm font-semibold text-[#125b53] hover:bg-white/70">
                   <span>{t("ideasSparksLabel")}</span><span aria-hidden="true">{sparksOpen ? "−" : "+"}</span>
@@ -163,7 +220,7 @@ export function IdeaSpace() {
               </div>
               {sparkIndex !== null ? <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-sm font-medium text-[#38534b]">{t(SPARKS[sparkIndex])}…</p><button type="button" onClick={() => setSparkIndex(null)} className="min-h-11 rounded-full px-3 text-sm font-semibold text-[#125b53] hover:bg-white/70">{t("ideasClearSpark")}</button></div> : null}
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button type="submit" className="min-h-12 w-full rounded-xl bg-teal-700 px-6 py-3 font-semibold text-white hover:bg-teal-800 sm:w-auto">{editingId ? t("ideasSaveChanges") : t("ideasKeepThought")}</button>
+                <button type="submit" disabled={needsDecision} className="disabled:opacity-60 min-h-12 w-full rounded-xl bg-teal-700 px-6 py-3 font-semibold text-white hover:bg-teal-800 sm:w-auto">{committed ? c("Retry cleanup", "تلاش دوباره برای پاک‌کردن") : saveFailed ? c("Retry saving", "تلاش دوباره برای ذخیره") : editingId ? t("ideasSaveChanges") : t("ideasKeepThought")}</button>
                 {(editingId || parentId || body) ? <button type="button" onClick={resetComposer} className={smallButton}>{t("cancel")}</button> : null}
               </div>
             </form>
