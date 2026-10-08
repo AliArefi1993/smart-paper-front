@@ -228,7 +228,7 @@ export function ExportView() {
         </div>
       </section>
 
-      {isLocalDataMode ? <AiReportPanel financeSource={payload} onFinanceExpired={() => {
+      {isLocalDataMode ? <AiReportPanel financeSource={payload} onFinanceRefreshed={setPayload} onFinanceExpired={() => {
         setPayload(null);
         setIsLocked(true);
       }} /> : null}
