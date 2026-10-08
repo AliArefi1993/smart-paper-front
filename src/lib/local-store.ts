@@ -559,11 +559,15 @@ export async function importLocalExportPayload(
     : mode === "replace"
       ? normalizePlannerSections(null)
       : getStoredPlannerSections();
-  const templates = Array.isArray(payload.week_templates)
-    ? payload.week_templates
-    : mode === "replace"
-      ? []
-      : getStoredWeekTemplates();
+  const templatesById = new Map<number, WeekTemplate>(
+    (mode === "merge" ? getStoredWeekTemplates() : []).map((template) => [template.id, template]),
+  );
+  for (const template of payload.week_templates ?? []) {
+    templatesById.set(template.id, template);
+  }
+  const templates = mode === "replace"
+    ? payload.week_templates ?? []
+    : [...templatesById.values()];
   const ideaNotes = restoreIdeaNotes(
     mode === "merge" ? readIdeaNotes(requireBrowserStorage()) : [],
     payload.idea_notes,

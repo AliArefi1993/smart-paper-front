@@ -24,6 +24,23 @@ test("accepts a valid backup, including an empty finance ledger", () => {
   assert.doesNotThrow(() => validateLocalBackup(backup()));
 });
 
+test("accepts backups with an absent or supported schema version", () => {
+  const legacy = backup();
+  delete legacy.schema_version;
+  assert.doesNotThrow(() => validateLocalBackup(legacy));
+  for (const schemaVersion of [1, 2, 3, 4, 5]) {
+    assert.doesNotThrow(() => validateLocalBackup({ ...backup(), schema_version: schemaVersion }));
+  }
+});
+
+test("rejects a future schema version without changing the backup", () => {
+  const futureBackup = { ...backup(), schema_version: 6 };
+  const before = structuredClone(futureBackup);
+
+  assert.throws(() => validateLocalBackup(futureBackup), /version is not supported/);
+  assert.deepEqual(futureBackup, before);
+});
+
 test("rejects incomplete data before it can replace saved records", () => {
   const invalid = backup();
   invalid.weeks[0].days[3].sections = null;
@@ -72,4 +89,60 @@ test("restores every earlier key when a storage write fails", () => {
     weeks: "old weeks",
     finance: "old finance",
   });
+});
+
+test("restores mixed present and absent keys after failure at every backup write", () => {
+  const changes = { a: "new a", b: "new b", c: "new c", d: "new d", e: "new e" };
+  for (let failedWrite = 1; failedWrite <= 5; failedWrite += 1) {
+    const values = new Map([["a", "old a"], ["c", "old c"], ["unrelated", "keep"]]);
+    let writes = 0;
+    const storage = {
+      getItem: (key) => values.get(key) ?? null,
+      setItem(key, value) {
+        writes += 1;
+        if (writes === failedWrite) throw new Error("storage full");
+        values.set(key, value);
+      },
+      removeItem: (key) => values.delete(key),
+    };
+
+    assert.throws(() => commitStorageChanges(storage, changes), /storage full/);
+    assert.deepEqual(Object.fromEntries(values), {
+      a: "old a",
+      c: "old c",
+      unrelated: "keep",
+    });
+  }
+});
+
+test("does not mutate storage when reading the snapshot fails", () => {
+  let mutations = 0;
+  const storage = {
+    getItem: () => { throw new Error("storage unavailable"); },
+    setItem: () => { mutations += 1; },
+    removeItem: () => { mutations += 1; },
+  };
+
+  assert.throws(() => commitStorageChanges(storage, { weeks: "new weeks" }), /storage unavailable/);
+  assert.equal(mutations, 0);
+});
+
+test("reports when rollback cannot fully restore saved data", () => {
+  const values = new Map([["weeks", "old weeks"]]);
+  let writes = 0;
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem(key, value) {
+      writes += 1;
+      if (writes === 2) throw new Error("storage full");
+      if (writes === 3) throw new Error("rollback failed");
+      values.set(key, value);
+    },
+    removeItem: (key) => values.delete(key),
+  };
+
+  assert.throws(
+    () => commitStorageChanges(storage, { weeks: "new weeks", finance: "new finance" }),
+    /could not be fully restored/,
+  );
 });
