@@ -1092,6 +1092,23 @@ export function WeeklyPlanner() {
     </button>;
   }
 
+  function renderLocalNextDayButton() {
+    return (
+      <button
+        type="button"
+        onClick={() => void saveAndGoToNextDay()}
+        disabled={!weekDetail || isSaving || isLoadingWeek || isFinalDay}
+        className={`min-h-12 min-w-0 rounded-xl border px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+          isDark
+            ? "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
+            : "border-slate-300 bg-white text-slate-700 hover:border-teal-500"
+        }`}
+      >
+        {t("plannerNextDay")}
+      </button>
+    );
+  }
+
   function renderFieldLabel(label: string, helper?: string) {
     return (
       <span className="mb-1 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase text-current opacity-75">
@@ -1102,6 +1119,8 @@ export function WeeklyPlanner() {
   }
 
   const activeDate = resolvedActiveDayDate();
+  const activeDayIndex = weekDetail?.days.findIndex((day) => day.date === activeDate) ?? -1;
+  const isFinalDay = Boolean(weekDetail && activeDayIndex === weekDetail.days.length - 1);
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 64rem)");
@@ -1131,7 +1150,7 @@ export function WeeklyPlanner() {
   return (
     <main
       dir={isPersian ? "rtl" : "ltr"}
-      className={`mx-auto flex min-h-screen w-full min-w-0 max-w-none flex-col gap-6 overflow-x-hidden px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${isDark ? "sp-dark" : "sp-light"} ${pageClass}`}
+      className={`mx-auto flex min-h-screen w-full min-w-0 max-w-none flex-col gap-6 overflow-x-hidden px-4 ${automaticSaving ? "pb-[calc(1.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(7rem+env(safe-area-inset-bottom))]"} pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${isDark ? "sp-dark" : "sp-light"} ${pageClass}`}
     >
       {!writingView ? <p className="sr-only" role={saveFailed ? "alert" : "status"} aria-atomic="true">{saveStatusText()}</p> : null}
       <section
@@ -1270,7 +1289,7 @@ export function WeeklyPlanner() {
                   )
                 : t("weekDetails")}
             </h2>
-            <div className={`mt-1 items-center gap-3 ${automaticSaving && weekDetail ? "hidden md:flex" : "flex"}`}>
+            <div className="mt-1 flex items-center gap-3">
               <p className={`text-sm font-medium ${saveStatusClass()}`}>{saveStatusText()}</p>
               {automaticSaving && saveFailed ? renderRetryButton() : null}
             </div>
@@ -1352,7 +1371,7 @@ export function WeeklyPlanner() {
               </div>
             </article>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 ref={minimizeDaysRef}
                 type="button"
@@ -1362,6 +1381,7 @@ export function WeeklyPlanner() {
               >
                 {t("minimizeAllDays")}
               </button>
+              {automaticSaving && weekDetail ? renderLocalNextDayButton() : null}
               {openDayDates.length === 0 ? <p className={`text-sm ${isDark ? "text-[var(--muted-foreground)]" : "text-slate-600"}`}>{t("weekOverviewHint")}</p> : null}
               <span className="sr-only" role="status" aria-live="polite">{dayAnnouncement}</span>
             </div>
@@ -1669,6 +1689,15 @@ export function WeeklyPlanner() {
                           </section>
                         );
                       })}
+                      {automaticSaving && isActiveDay ? (
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-current/10 pt-3">
+                          <div className="flex min-w-0 flex-wrap items-center gap-3">
+                            <p className={`min-w-0 text-sm font-medium ${saveStatusClass()}`}>{saveStatusText()}</p>
+                            {saveFailed ? renderRetryButton() : null}
+                          </div>
+                          {renderLocalNextDayButton()}
+                        </div>
+                      ) : null}
                     </div>
                   </article>
                 );
@@ -1746,7 +1775,7 @@ export function WeeklyPlanner() {
           </div>
         </section>
       ) : null}
-      {weekDetail ? (
+      {weekDetail && !automaticSaving ? (
         <div
           className={`fixed inset-x-0 bottom-0 z-30 w-screen max-w-full border-t px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl md:hidden ${
             isDark
