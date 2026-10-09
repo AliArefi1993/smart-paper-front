@@ -1,0 +1,124 @@
+name: Frontend checks and verification APK
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/**'
+      - 'android/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '*config*'
+      - 'package*.json'
+      - 'tsconfig.json'
+      - 'next-env.d.ts'
+      - '.npmrc'
+  push:
+    branches: ['main', 'codex/ci-validation/**']
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/**'
+      - 'android/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '*config*'
+      - 'package*.json'
+      - 'tsconfig.json'
+      - 'next-env.d.ts'
+      - '.npmrc'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verification-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verification:
+    name: Lint, types, tests, local build and debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_DATA_MODE: local
+      NEXT_TELEMETRY_DISABLED: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          overwrite-settings: false
+      - name: Restore verification dependencies
+        id: dependencies
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm/_cacache
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: verification-v1-${{ runner.os }}-node24-java21-sdk36-gradle8.14.3-${{ hashFiles('package-lock.json', 'android/**/*.gradle', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npx --no-install tsc --noEmit
+      - name: Tests
+        run: npm test
+      - name: Local-data production build
+        run: npm run build
+      - name: Sync Android assets
+        run: npx --no-install cap sync android
+      - name: Install Android SDK 36 tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+      - name: Assemble isolated verification APK
+        run: bash scripts/ci-build-verification.sh
+      - name: Verify APK and write provenance
+        env:
+          VERIFICATION_EVENT_SHA: ${{ github.sha }}
+          VERIFICATION_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/ci-verify-apk.py
+      - name: Bound dependency cache size
+        id: cache-size
+        run: |
+          size_kb=$(du -sk "$HOME/.npm/_cacache" "$HOME/.gradle/caches" "$HOME/.gradle/wrapper" | awk '{total += $1} END {print total}')
+          if (( size_kb <= 2097152 )); then
+            echo 'save=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Dependency cache exceeds 2 GiB; skipping save.'
+          fi
+      - name: Save verified default-branch dependencies
+        if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.dependencies.outputs.cache-hit != 'true' && steps.cache-size.outputs.save == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm/_cacache
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+      - name: Upload verification APK only after all checks pass
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smart-paper-verification-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            verification-artifact/smart-paper-verification.apk
+            verification-artifact/SHA256SUMS
+            verification-artifact/provenance.json
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0

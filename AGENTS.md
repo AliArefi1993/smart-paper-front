@@ -106,6 +106,9 @@ npx tsc --noEmit
 
 Focused local import safety tests are available with `npm test`.
 
+GitHub-hosted frontend checks and isolated debug verification APKs are documented in
+[.github/CI.md](.github/CI.md). These artifacts are separate from stable-signed releases.
+
 Android local-data build:
 
 ```bash
