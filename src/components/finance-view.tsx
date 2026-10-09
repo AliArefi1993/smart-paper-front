@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
 import {
@@ -18,6 +18,7 @@ import {
   saveFinanceGoal,
   unlockFinanceSession,
 } from "@/lib/finance-store";
+import { FinanceSessionLifecycle, watchFinanceSession } from "@/lib/finance-session";
 import { useLanguage } from "@/lib/use-language";
 import type { FinancePayload, IncomeEntry } from "@/lib/smart-paper-types";
 
@@ -45,13 +46,21 @@ export function FinanceView() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [sessionCheckIntervalMs, setSessionCheckIntervalMs] = useState(30000);
+  const [session] = useState(() => new FinanceSessionLifecycle());
+  const translation = useRef(t);
+  const sensitiveContent = useRef<HTMLDivElement>(null);
+  const lockHeading = useRef<HTMLHeadingElement>(null);
+  const restoreLockFocus = useRef(false);
+
+  useEffect(() => { translation.current = t; }, [t]);
 
   function isForbidden(errorValue: unknown): boolean {
     return errorValue instanceof Response && errorValue.status === 403;
   }
 
-  function forceLock(messageText?: string) {
+  const forceLock = useCallback((messageText = "") => {
+    restoreLockFocus.current = !!sensitiveContent.current?.contains(document.activeElement);
+    session.begin();
     setIsLocked(true);
     setData(null);
     setGoalInput("");
@@ -61,60 +70,74 @@ export function FinanceView() {
     setEditAmountInput("");
     setEditNoteInput("");
     setEditDateInput("");
-    if (messageText) {
-      setError(messageText);
-    }
-  }
+    setPinInput("");
+    setShowGoalSettings(false);
+    setIsUnlocking(false);
+    setIsSavingGoal(false);
+    setIsAddingIncome(false);
+    setDeletingEntryId(null);
+    setIsSavingEdit(false);
+    setIsLoading(false);
+    setMessage("");
+    setError(messageText);
+  }, [session]);
 
   useEffect(() => {
-    let cancelled = false;
+    if (isLocked && !isLoading && restoreLockFocus.current) {
+      restoreLockFocus.current = false;
+      lockHeading.current?.focus({ preventScroll: true });
+      lockHeading.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [isLocked, isLoading]);
 
+  useEffect(() => {
+    const generation = session.begin();
     async function bootstrap() {
       try {
         const payload = await getFinance();
-        if (cancelled) return;
+        if (!await session.validate(generation, checkFinanceSession, () => forceLock())) return;
+        if (!session.isCurrent(generation)) return;
         setIsLocked(false);
         setData(payload);
-        if (payload.unlock_ttl_seconds && payload.unlock_ttl_seconds > 0) {
-          setSessionCheckIntervalMs(payload.unlock_ttl_seconds * 1000);
-        }
         setGoalInput(payload.goal_amount ? String(payload.goal_amount) : "");
       } catch (loadError) {
-        if (cancelled) return;
+        if (!session.isCurrent(generation)) return;
         if (isForbidden(loadError)) {
           forceLock();
           return;
         }
-        setError(loadError instanceof Error ? loadError.message : t("loading"));
+        setError(loadError instanceof Error ? loadError.message : translation.current("loading"));
       } finally {
-        if (cancelled) return;
-        setIsLoading(false);
+        if (session.isCurrent(generation)) setIsLoading(false);
       }
     }
-
     void bootstrap();
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
+    return () => { session.begin(); };
+  }, [session, forceLock]);
 
   useEffect(() => {
     if (isLocked) return;
-    const intervalId = window.setInterval(async () => {
+    const generation = session.current();
+    let active = true;
+    const cleanup = watchFinanceSession(window, document, async () => {
       try {
-        const response = await checkFinanceSession();
-        if (response.status === 403) {
-          forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
-        }
+        await session.validate(generation, checkFinanceSession, () => {
+          if (active) forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
+        });
       } catch {
         // Ignore transient network errors during background checks.
       }
-    }, sessionCheckIntervalMs);
-
+    });
     return () => {
-      window.clearInterval(intervalId);
+      active = false;
+      cleanup();
     };
-  }, [isLocked, sessionCheckIntervalMs, t]);
+  }, [isLocked, session, forceLock, t]);
+
+  async function canPublish(generation: number): Promise<boolean> {
+    return session.validate(generation, checkFinanceSession, () =>
+      forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`));
+  }
 
   const progressWidth = useMemo(() => {
     if (!data) return "0%";
@@ -128,21 +151,23 @@ export function FinanceView() {
       return;
     }
 
+    const generation = session.begin();
     setIsUnlocking(true);
     setError("");
     setMessage("");
     try {
       await unlockFinanceSession(pinInput);
+      if (!session.isCurrent(generation)) return;
       const payload = await getFinance();
-      if (payload.unlock_ttl_seconds && payload.unlock_ttl_seconds > 0) {
-        setSessionCheckIntervalMs(payload.unlock_ttl_seconds * 1000);
-      }
+      if (!await canPublish(generation)) return;
+      if (!session.isCurrent(generation)) return;
       setData(payload);
       setGoalInput(payload.goal_amount ? String(payload.goal_amount) : "");
       setPinInput("");
       setIsLocked(false);
       setMessage(t("financeUnlocked"));
     } catch (unlockError) {
+      if (!session.isCurrent(generation)) return;
       setError(
         isForbidden(unlockError)
           ? t("wrongPin")
@@ -151,85 +176,101 @@ export function FinanceView() {
             : t("finance"),
       );
     } finally {
-      setIsUnlocking(false);
+      if (session.isCurrent(generation)) setIsUnlocking(false);
     }
   }
 
   async function saveGoal() {
+    if (isLocked) return;
     const goalValue = Number(goalInput);
     if (!Number.isInteger(goalValue) || goalValue < 0) {
       setError(t("goalMustBePositive"));
       return;
     }
 
+    const generation = session.current();
     setIsSavingGoal(true);
     setError("");
     setMessage("");
     try {
       const payload = await saveFinanceGoal(goalValue);
+      if (!await canPublish(generation)) return;
+      if (!session.isCurrent(generation)) return;
       setData(payload);
       setMessage(`${t("goal")} ${t("savedSuccessfully")}`);
     } catch (saveError) {
+      if (!session.isCurrent(generation)) return;
       if (isForbidden(saveError)) {
         forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
       setError(saveError instanceof Error ? saveError.message : t("saveGoal"));
     } finally {
-      setIsSavingGoal(false);
+      if (session.isCurrent(generation)) setIsSavingGoal(false);
     }
   }
 
   async function addIncome() {
+    if (isLocked) return;
     const incomeValue = Number(incomeInput);
     if (!Number.isInteger(incomeValue) || incomeValue <= 0) {
       setError(t("incomeMustBePositive"));
       return;
     }
 
+    const generation = session.current();
     setIsAddingIncome(true);
     setError("");
     setMessage("");
     try {
       const payload = await addIncomeData(incomeValue, incomeNote);
+      if (!await canPublish(generation)) return;
+      if (!session.isCurrent(generation)) return;
       setData(payload);
       setIncomeInput("");
       setIncomeNote("");
       setMessage(t("incomeAdded"));
     } catch (saveError) {
+      if (!session.isCurrent(generation)) return;
       if (isForbidden(saveError)) {
         forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
       setError(saveError instanceof Error ? saveError.message : t("addIncome"));
     } finally {
-      setIsAddingIncome(false);
+      if (session.isCurrent(generation)) setIsAddingIncome(false);
     }
   }
 
   async function deleteIncome(entryId: number) {
+    if (isLocked) return;
     if (deletingEntryId !== null || !window.confirm(isPersian
       ? "این درآمد حذف شود؟ این درآمد حذف می‌شود. این کار قابل بازگشت نیست."
       : "Delete this income entry? This entry will be removed. This cannot be undone.")) return;
+    const generation = session.current();
     setDeletingEntryId(entryId);
     setError("");
     setMessage("");
     try {
       const payload = await deleteIncomeData(entryId);
+      if (!await canPublish(generation)) return;
+      if (!session.isCurrent(generation)) return;
       setData(payload);
       setMessage(t("incomeDeleted"));
     } catch (deleteError) {
+      if (!session.isCurrent(generation)) return;
       if (isForbidden(deleteError)) {
         forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
       setError(deleteError instanceof Error ? deleteError.message : t("delete"));
     } finally {
-      setDeletingEntryId(null);
+      if (session.isCurrent(generation)) setDeletingEntryId(null);
     }
   }
 
   function startEdit(entry: IncomeEntry) {
+    if (isLocked) return;
     setEditingEntryId(entry.id);
     setEditAmountInput(String(entry.amount));
     setEditNoteInput(entry.note);
@@ -246,6 +287,7 @@ export function FinanceView() {
   }
 
   async function saveEdit(entryId: number) {
+    if (isLocked) return;
     const amountValue = Number(editAmountInput);
     if (!Number.isInteger(amountValue) || amountValue <= 0) {
       setError(t("editedIncomePositive"));
@@ -256,6 +298,7 @@ export function FinanceView() {
       return;
     }
 
+    const generation = session.current();
     setIsSavingEdit(true);
     setError("");
     setMessage("");
@@ -266,17 +309,20 @@ export function FinanceView() {
         editNoteInput,
         editDateInput,
       );
+      if (!await canPublish(generation)) return;
+      if (!session.isCurrent(generation)) return;
       setData(payload);
       setMessage(t("incomeUpdated"));
       cancelEdit();
     } catch (saveError) {
+      if (!session.isCurrent(generation)) return;
       if (isForbidden(saveError)) {
         forceLock(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
       setError(saveError instanceof Error ? saveError.message : t("incomeUpdated"));
     } finally {
-      setIsSavingEdit(false);
+      if (session.isCurrent(generation)) setIsSavingEdit(false);
     }
   }
 
@@ -319,17 +365,18 @@ export function FinanceView() {
 
       {!isLoading && isLocked ? (
         <section className="mx-auto mt-6 w-full max-w-md rounded-2xl border border-amber-300 bg-amber-50 p-5">
-          <h2 className="text-lg font-semibold text-amber-900">{t("financeIsLocked")}</h2>
+          <h2 ref={lockHeading} tabIndex={-1} className="text-lg font-semibold text-amber-900">{t("financeIsLocked")}</h2>
           <p className="mt-2 text-sm text-amber-900">
             {t("enterPin")}
           </p>
           {isLocalDataMode ? <p className="mt-2 text-sm text-amber-900">{t("localPinNotice")}</p> : null}
           {usesDefaultLocalPin ? <p className="mt-2 text-sm text-amber-900">{t("defaultLocalPinHint")}</p> : null}
           <input
+            aria-label={t("financePin")}
             type="password"
             value={pinInput}
             onChange={(event) => setPinInput(event.target.value)}
-            className="mt-4 w-full rounded-lg border border-amber-500/60 bg-white px-3 py-2 text-sm outline-none ring-amber-400 focus:ring"
+            className="mt-4 min-h-11 w-full rounded-lg border border-amber-500/60 bg-white px-3 py-2 text-sm outline-none ring-amber-400 focus:ring"
             placeholder={t("enterPin")}
           />
           <button
@@ -344,7 +391,7 @@ export function FinanceView() {
       ) : null}
 
       {data && !isLocked ? (
-        <>
+        <div ref={sensitiveContent}>
           <section className="mx-auto mt-3 flex w-full max-w-5xl justify-end">
             <button
               type="button"
@@ -534,7 +581,7 @@ export function FinanceView() {
               </div>
             )}
           </section>
-        </>
+        </div>
       ) : null}
     </main>
   );
