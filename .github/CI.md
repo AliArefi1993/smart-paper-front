@@ -1,5 +1,8 @@
 # Frontend verification on GitHub Actions
 
+For the separate manual stable-signed build and private maintainer setup, see
+[STABLE-BUILDS.md](STABLE-BUILDS.md). Verification PR checks never access its signing environment.
+
 Design: not applicable. This workflow changes build infrastructure only.
 
 `workflows/verification.yml` runs on relevant pull requests, pushes to `main` or `codex/ci-validation/**`, and manual dispatch (maintainers can select a nondefault branch). This avoids duplicate branch/PR jobs during normal feature work. The single 30-minute job uses standard `ubuntu-24.04`, Node 24, Temurin Java 21, SDK 36/build-tools 36.0.0 and the repository's Gradle 8.14.3 wrapper. Lint, TypeScript, tests, the `NEXT_PUBLIC_DATA_MODE=local` production build, Capacitor sync, debug assembly and APK verification must all succeed before upload. Path filters omit documentation-only changes. Do not configure this path-filtered workflow as an unconditional required check without handling skipped checks. The design studio belongs to the separate team repository and needs its owning-repository checks when affected.

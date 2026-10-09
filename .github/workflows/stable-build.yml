@@ -1,0 +1,145 @@
+name: Hosted stable-signed APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version_code:
+        description: 'versionCode already committed on main (this workflow does not bump it)'
+        required: true
+        type: string
+      expected_version_name:
+        description: 'versionName already committed on main'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosted-stable-signing
+  cancel-in-progress: false
+
+env:
+  NEXT_PUBLIC_DATA_MODE: local
+  NEXT_TELEMETRY_DISABLED: '1'
+  EXPECTED_SOURCE_SHA: ${{ github.sha }}
+  EXPECTED_VERSION_CODE: ${{ inputs.expected_version_code }}
+  EXPECTED_VERSION_NAME: ${{ inputs.expected_version_name }}
+
+jobs:
+  build:
+    name: Check main and build unsigned candidate
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'AliArefi1993/smart-paper-front'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      candidate-id: ${{ steps.candidate.outputs.artifact-id }}
+      candidate-digest: ${{ steps.candidate.outputs.artifact-digest }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          overwrite-settings: false
+      - name: Check source, version and signing absence
+        run: python3 scripts/ci-stable-apk.py preflight
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npx --no-install tsc --noEmit
+      - name: Tests
+        run: npm test
+      - name: Local-data production build
+        run: npm run build
+      - name: Sync Android assets
+        run: npx --no-install cap sync android
+      - name: Install Android SDK 36 tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+      - name: Assemble unsigned release
+        run: bash scripts/ci-build-stable-unsigned.sh
+      - name: Verify unsigned APK and collect candidate
+        run: python3 scripts/ci-stable-apk.py prepare
+      - name: Upload immutable same-run candidate
+        id: candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stable-unsigned-${{ github.sha }}-${{ github.run_attempt }}
+          path: stable-candidate/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  sign:
+    name: Approve exact source and sign stable APK
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'AliArefi1993/smart-paper-front'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: stable-signing
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          overwrite-settings: false
+      - name: Install signing tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;36.0.0'
+      - name: Download only this run's exact candidate ID
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.candidate-id }}
+          path: stable-candidate/
+          merge-multiple: true
+          digest-mismatch: error
+      - name: Recheck candidate before exposing signing secrets
+        run: python3 scripts/ci-stable-apk.py validate
+      - name: Sign APK with existing stable identity
+        env:
+          SMART_PAPER_UPLOAD_KEYSTORE_BASE64: ${{ secrets.SMART_PAPER_UPLOAD_KEYSTORE_BASE64 }}
+          SMART_PAPER_UPLOAD_STORE_PASSWORD: ${{ secrets.SMART_PAPER_UPLOAD_STORE_PASSWORD }}
+          SMART_PAPER_UPLOAD_KEY_ALIAS: ${{ secrets.SMART_PAPER_UPLOAD_KEY_ALIAS }}
+          SMART_PAPER_UPLOAD_KEY_PASSWORD: ${{ secrets.SMART_PAPER_UPLOAD_KEY_PASSWORD }}
+        run: python3 scripts/ci-sign-stable.py
+      - name: Verify stable APK and write checksum/provenance
+        env:
+          STABLE_CANDIDATE_ARTIFACT_ID: ${{ needs.build.outputs.candidate-id }}
+          STABLE_CANDIDATE_ARTIFACT_DIGEST: ${{ needs.build.outputs.candidate-digest }}
+        run: python3 scripts/ci-stable-apk.py verify
+      - name: Upload stable artifact after all checks pass
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smart-paper-stable-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            stable-artifact/smart-paper-stable.apk
+            stable-artifact/SHA256SUMS
+            stable-artifact/provenance.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Always remove temporary signing material
+        if: always()
+        run: python3 scripts/ci-sign-stable.py --cleanup
