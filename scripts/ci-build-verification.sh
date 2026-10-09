@@ -21,6 +21,13 @@ done
 [[ "$NEXT_PUBLIC_DATA_MODE" == local ]]
 test -f out/index.html
 
+# Public Android debug credentials; this fresh key is never cached or uploaded.
+[[ "$VERIFICATION_KEYSTORE_PATH" == "$RUNNER_TEMP/smart-paper-verification-debug.keystore" ]]
+test ! -e "$VERIFICATION_KEYSTORE_PATH"
+keytool -genkeypair -noprompt -keystore "$VERIFICATION_KEYSTORE_PATH" \
+  -storetype JKS -storepass android -keypass android -alias androiddebugkey \
+  -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
+
 # Add the official checksum only in this ephemeral checkout's wrapper configuration.
 # Gradle checks newly downloaded distribution archives against this value.
 python3 - <<'PY'
@@ -51,6 +58,10 @@ gradle.beforeProject { project ->
     project.pluginManager.withPlugin('com.android.application') {
         project.android.buildTypes.debug.applicationIdSuffix = '.verification'
         project.android.buildTypes.debug.versionNameSuffix = '-verification'
+        project.android.signingConfigs.debug.storeFile = project.file(System.getenv('VERIFICATION_KEYSTORE_PATH'))
+        project.android.signingConfigs.debug.storePassword = 'android'
+        project.android.signingConfigs.debug.keyAlias = 'androiddebugkey'
+        project.android.signingConfigs.debug.keyPassword = 'android'
     }
 }
 GRADLE

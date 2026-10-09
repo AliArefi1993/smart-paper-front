@@ -43,8 +43,10 @@ def verify(apk, out, gradle_config, tools):
     require(len(digests) == 1, 'Expected exactly one APK signer')
     require(re.search(r'^Signer #1 certificate DN: .*CN=Android Debug', certificates, re.M), 'Expected ephemeral Android debug certificate')
     # Match the APK to this runner's generated public certificate, never a stable key.
+    keystore = Path(os.environ['VERIFICATION_KEYSTORE_PATH'])
+    require(keystore == Path(os.environ['RUNNER_TEMP']) / 'smart-paper-verification-debug.keystore', 'Unexpected verification debug keystore path')
     certificate = subprocess.check_output([
-        'keytool', '-exportcert', '-keystore', str(Path.home() / '.android/debug.keystore'),
+        'keytool', '-exportcert', '-keystore', str(keystore),
         '-alias', 'androiddebugkey', '-storepass', 'android',
     ], stderr=subprocess.PIPE)
     require(hashlib.sha256(certificate).hexdigest() == digests[0].lower(), 'APK signer differs from runner debug certificate')

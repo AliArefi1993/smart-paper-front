@@ -8,6 +8,8 @@ Download the three-day artifact from a successful Actions run: `smart-paper-veri
 
 Use dummy data in this debuggable verification app; it is intended for testing.
 
+Each run generates a fresh verification debug keystore at a fixed `runner.temp` path, explicitly configures debug signing with it, and exports that exact key's public certificate for comparison. It uses public Android debug credentials (`android`/`androiddebugkey`); no stable key or secret is involved. The ephemeral key remains outside the checkout, caches and artifact paths, and is discarded with the hosted runner.
+
 The helpers verify the actual checkout SHA, package ID, source version, debuggable flag, app/launcher labels, APK signature against the runner's debug certificate, and every static web build file against its packaged counterpart. Provenance records the actual checked-out commit (the synthetic merge commit for pull requests), PR head separately, run URL, APK checksum, public certificate digest and tools. These are diagnostic records produced by the checked-out code, not trusted release attestations. The local-data evidence is the explicit build environment plus byte-for-byte packaged output verification, not a device runtime test.
 
 The token has only `contents: read`; checkout does not persist credentials. There are no release-secret references, environments, `pull_request_target`, publishing, tags, commits, or production actions. Helpers reject local signing material and signing environment before Gradle. The CI-only debug manifest and init script leave tracked application/release behavior unchanged. The wrapper archive gets the [official Gradle 8.14.3 checksum](https://services.gradle.org/distributions/gradle-8.14.3-all.zip.sha256) in the ephemeral checkout.

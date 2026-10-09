@@ -45,6 +45,7 @@ jobs:
     env:
       NEXT_PUBLIC_DATA_MODE: local
       NEXT_TELEMETRY_DISABLED: '1'
+      VERIFICATION_KEYSTORE_PATH: ${{ runner.temp }}/smart-paper-verification-debug.keystore
     defaults:
       run:
         shell: bash
