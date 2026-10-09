@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 
 
@@ -14,9 +15,13 @@ def run(*args):
     return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT).strip()
 
 
+class VerificationError(ValueError):
+    """A deliberate validation failure whose message is safe for CI annotations."""
+
+
 def require(condition, message):
     if not condition:
-        raise ValueError(message)
+        raise VerificationError(message)
 
 
 def verify(apk, out, gradle_config, tools):
@@ -31,7 +36,8 @@ def verify(apk, out, gradle_config, tools):
     require((version_code, version_name) == (expected_code, expected_name), 'APK version differs from checked-out source')
     require('application-debuggable' in badging, 'APK is not a debug build')
     require("application-label:'Smart Paper Verification'" in badging, 'APK application label is not verification')
-    require(re.search(r"launchable-activity: name='com\.aliarefi\.smartpaper\.MainActivity' label='Smart Paper Verification'", badging), 'APK launcher activity/label differs')
+    # SDK aapt emits two spaces before label; spacing is not part of the identity.
+    require(re.search(r"^launchable-activity:\s+name='com\.aliarefi\.smartpaper\.MainActivity'\s+label='Smart Paper Verification'", badging, re.M), 'APK launcher activity/label differs')
     certificates = run(str(tools / 'apksigner'), 'verify', '--verbose', '--print-certs', str(apk))
     digests = re.findall(r'^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)$', certificates, re.M)
     require(len(digests) == 1, 'Expected exactly one APK signer')
@@ -103,5 +109,21 @@ def main():
     print(f'Verified {filename}: {checksum}; {details["web_assets_compared"]} matching web assets')
 
 
+def report_failure(error):
+    if isinstance(error, VerificationError):
+        message = str(error)
+    elif isinstance(error, subprocess.CalledProcessError):
+        message = f'Verification tool {Path(error.cmd[0]).name} exited with code {error.returncode}'
+    else:
+        message = f'Verification failed ({type(error).__name__}); required metadata, assets or tool unavailable'
+    # Never include captured tool output, signing material, or environment values.
+    message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    print(f'::error file=scripts/ci-verify-apk.py,title=APK verification failed::{message}', file=sys.stderr)
+
+
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as error:
+        report_failure(error)
+        sys.exit(1)
