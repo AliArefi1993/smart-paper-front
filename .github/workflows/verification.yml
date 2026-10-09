@@ -45,7 +45,6 @@ jobs:
     env:
       NEXT_PUBLIC_DATA_MODE: local
       NEXT_TELEMETRY_DISABLED: '1'
-      VERIFICATION_KEYSTORE_PATH: ${{ runner.temp }}/smart-paper-verification-debug.keystore
     defaults:
       run:
         shell: bash
@@ -88,9 +87,12 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
       - name: Assemble isolated verification APK
+        env:
+          VERIFICATION_KEYSTORE_PATH: ${{ runner.temp }}/smart-paper-verification-debug.keystore
         run: bash scripts/ci-build-verification.sh
       - name: Verify APK and write provenance
         env:
+          VERIFICATION_KEYSTORE_PATH: ${{ runner.temp }}/smart-paper-verification-debug.keystore
           VERIFICATION_EVENT_SHA: ${{ github.sha }}
           VERIFICATION_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: python3 scripts/ci-verify-apk.py
