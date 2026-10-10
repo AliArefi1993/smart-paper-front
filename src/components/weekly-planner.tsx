@@ -1886,7 +1886,7 @@ export function WeeklyPlanner() {
       ) : null}
       {scheduleDraft ? (
         <div className={`fixed inset-0 z-40 flex items-end ${sheetBackdropClass} px-4 py-4 sm:items-center sm:justify-center`}>
-          <div className={`w-full max-w-lg rounded-2xl border p-4 shadow-2xl ${panelClass}`}>
+          <div className={`max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border p-4 shadow-2xl ${panelClass}`}>
             <h2 className="text-lg font-semibold">
               {scheduleDraft.id ? t("editScheduleEntry") : t("addScheduleEntry")}
             </h2>
