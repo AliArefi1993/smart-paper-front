@@ -35,8 +35,9 @@ const WEEKS_KEY = "smart-paper.local.weeks";
 const PLANNER_SECTIONS_KEY = "smart-paper.local.planner-sections";
 const WEEK_TEMPLATES_KEY = "smart-paper.local.week-templates";
 const FINANCE_KEY = "smart-paper.local.finance";
-const FINANCE_UNLOCK_KEY = "smart-paper.local.finance-unlocked-until";
 const FINANCE_UNLOCK_TTL_SECONDS = 3600;
+// Authorization must not migrate with Android backups or survive a new runtime.
+let financeUnlockedUntil = 0;
 
 type StoredWeeks = Record<string, WeekDetail>;
 type StoredFinance = {
@@ -423,9 +424,7 @@ function forbiddenResponse(): Response {
 }
 
 function isFinanceUnlocked(): boolean {
-  const raw = requireBrowserStorage().getItem(FINANCE_UNLOCK_KEY);
-  const unlockedUntil = raw ? Number(raw) : 0;
-  return Number.isFinite(unlockedUntil) && unlockedUntil > Date.now();
+  return financeUnlockedUntil > Date.now();
 }
 
 function assertFinanceUnlocked(): void {
@@ -442,10 +441,7 @@ export async function unlockLocalFinanceSession(pin: string): Promise<void> {
   if (pin !== getFinancePin()) {
     throw forbiddenResponse();
   }
-  requireBrowserStorage().setItem(
-    FINANCE_UNLOCK_KEY,
-    String(Date.now() + FINANCE_UNLOCK_TTL_SECONDS * 1000),
-  );
+  financeUnlockedUntil = Date.now() + FINANCE_UNLOCK_TTL_SECONDS * 1000;
 }
 
 export async function getLocalFinance(): Promise<FinancePayload> {

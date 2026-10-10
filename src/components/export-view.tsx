@@ -209,6 +209,7 @@ export function ExportView() {
             {t("saveBackupReadable")}
           </p>
           {isLocalDataMode ? <p className="mt-2 text-sm text-amber-900">{t("backupNotice")}</p> : null}
+          {isLocalDataMode ? <p className="mt-2 text-sm leading-6 text-amber-900">{t("androidBackupPolicyNotice")}</p> : null}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
