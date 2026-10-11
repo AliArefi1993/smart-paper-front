@@ -244,13 +244,62 @@ html.sp-dark .sp-page :is(
   background-color: #30443f;
 }
 
-html.sp-dark .sp-page .sp-timer-glass {
-  fill: var(--primary-soft);
-  stroke: var(--primary);
+.sp-timer-hourglass {
+  --sand-light: #d5b477;
+  --sand-body: #b88a48;
+  --sand-shadow: #8c6334;
+  --glass-fill: #e9eee8;
+  --glass-edge: #89938a;
+  --glass-shine: #fffdf5;
+  --frame: #70523a;
+  --frame-light: #a48564;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 9px 10px rgb(112 82 58 / 9%));
 }
 
-html.sp-dark .sp-page .sp-timer-frame {
-  stroke: var(--primary);
+html.sp-dark .sp-page .sp-timer-hourglass {
+  --sand-light: #e0c184;
+  --sand-body: #bf9656;
+  --sand-shadow: #916a3d;
+  --glass-fill: #33423e;
+  --glass-edge: #95a69b;
+  --glass-shine: #b6c8c2;
+  --frame: #b69a78;
+  --frame-light: #dfc8a4;
+}
+
+.sp-timer-grain {
+  transform-box: view-box;
+  animation: sp-timer-sand-fall 0.8s linear infinite;
+}
+
+.sp-timer-hourglass[data-state="paused"] .sp-timer-grain {
+  animation-play-state: paused;
+}
+
+@keyframes sp-timer-sand-fall {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(var(--sand-fall));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-timer-grain {
+    display: none;
+  }
 }
 
 html.sp-dark .sp-page [class~="hover:text-teal-800"]:hover {

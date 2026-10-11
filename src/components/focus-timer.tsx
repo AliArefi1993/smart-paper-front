@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
+import { TimerHourglass } from "@/components/timer-hourglass";
 import {
   TIMER_STORAGE_KEY,
   advanceTimerPhase,
@@ -150,17 +151,8 @@ export function FocusTimer() {
           </div>
           <p className="mt-2 text-xs text-[#536660]">{t("timerChoosePhaseHint")}</p>
 
-          <div aria-hidden="true" className="relative mx-auto mt-5 h-48 w-40 sm:h-56 sm:w-48">
-            <svg viewBox="0 0 160 190" className="h-full w-full drop-shadow-[0_12px_15px_rgba(15,118,110,0.12)]">
-              <defs>
-                <clipPath id="timer-sand-top"><path d="M24 20 H136 Q130 63 85 94 H75 Q30 63 24 20 Z" /></clipPath>
-                <clipPath id="timer-sand-bottom"><path d="M75 96 H85 Q130 127 136 170 H24 Q30 127 75 96 Z" /></clipPath>
-              </defs>
-              <path className="sp-timer-glass" d="M24 20 H136 Q130 63 85 94 H75 Q30 63 24 20 Z M75 96 H85 Q130 127 136 170 H24 Q30 127 75 96 Z" fill="#e7f4ef" stroke="#0f766e" strokeWidth="5" strokeLinejoin="round" />
-              <rect x="20" y={20 + progress * 0.75} width="120" height={Math.max(0, 75 - progress * 0.75)} fill="#d69a54" clipPath="url(#timer-sand-top)" />
-              <rect x="20" y={170 - progress * 0.75} width="120" height={progress * 0.75} fill="#d69a54" clipPath="url(#timer-sand-bottom)" />
-              <path className="sp-timer-frame" d="M15 18 H145 M15 172 H145" stroke="#125b53" strokeWidth="8" strokeLinecap="round" />
-            </svg>
+          <div className="relative mx-auto mt-5 h-48 w-40 sm:h-56 sm:w-48">
+            <TimerHourglass progress={progress} status={timer?.status ?? "idle"} />
           </div>
 
           <div className="mt-1 font-mono text-[clamp(3.7rem,15vw,6.5rem)] font-semibold leading-none tabular-nums tracking-tight text-[#16443e]" dir="ltr" aria-hidden="true">
