@@ -14,7 +14,7 @@ cd smart-paper-front
 
 ## Stack
 
-- Next.js 16.2.4 App Router
+- Next.js 16.4.0 App Router
 - React 19.2.4
 - TypeScript
 - Tailwind CSS 4 through `@tailwindcss/postcss`
