@@ -134,9 +134,43 @@ test("invalid and incomplete date ranges are rejected", () => {
   for (const [startDate, endDate] of [
     ["2026-09-30", undefined], ["2026-02-30", "2026-03-01"],
     ["2026-10-01", "2026-09-30"], ["09/30/2026", "2026-10-01"],
+    ["0000-01-01", "0000-01-07"], ["0001-02-29", "0001-03-01"],
+    ["0100-02-29", "0100-03-01"], ["10000-01-01", "10000-01-07"],
   ]) {
     const options = { startDate, endDate, include: none };
     assert.throws(() => formatAiReport(payload, options), RangeError);
     assert.throws(() => summarizeAiReport(payload, options), RangeError);
   }
+});
+
+test("accepted year-0001 week context prepares an inclusive report without a 1900 offset", async () => {
+  const { readReportWeekContext } = await import("../src/lib/report-week-context.ts");
+  const context = readReportWeekContext(new URLSearchParams("reportWeek=0001-01-06"));
+  assert.equal(context.status, "valid");
+  const payload = sample();
+  payload.weeks = [{
+    ...payload.weeks[0],
+    start_date: context.startDate,
+    end_date: context.endDate,
+    weekly_goal: "HISTORICAL GOAL",
+    days: [
+      { ...payload.weeks[0].days[0], date: "0001-01-05", day_note: "BEFORE RANGE" },
+      { ...payload.weeks[0].days[0], date: "0001-01-06", day_note: "SATURDAY INCLUDED" },
+      { ...payload.weeks[0].days[0], date: "0001-01-12", day_note: "FRIDAY INCLUDED" },
+      { ...payload.weeks[0].days[0], date: "0001-01-13", day_note: "AFTER RANGE" },
+    ],
+  }];
+  const options = {
+    startDate: context.startDate, endDate: context.endDate,
+    include: { ...none, weeklyGoals: true, dayNotes: true },
+  };
+  assert.deepEqual(summarizeAiReport(payload, options), {
+    weeks: 1, days: 2, incomeEntries: 0, hasSelection: true,
+  });
+  const report = formatAiReport(payload, options);
+  assert.match(report, /0001-01-06 to 0001-01-12 \(inclusive\)/);
+  assert.match(report, /HISTORICAL GOAL/);
+  assert.match(report, /SATURDAY INCLUDED/);
+  assert.match(report, /FRIDAY INCLUDED/);
+  assert.doesNotMatch(report, /BEFORE RANGE|AFTER RANGE|1901/);
 });

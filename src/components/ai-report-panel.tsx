@@ -5,7 +5,8 @@ import { formatAiReport, summarizeAiReport, type AiReportOptions } from "@/lib/a
 import { prepareAiReportTransfer, copyAiReportText } from "@/lib/ai-report-transfer";
 import { getAiReportSource } from "@/lib/export-store";
 import { shareOrDownloadFile } from "@/lib/file-share";
-import { formatNumber } from "@/lib/formatters";
+import { isCompleteReportDateRange, type ReportWeekContext } from "@/lib/report-week-context";
+import { formatReadableShamsiWeekRange, formatNumber } from "@/lib/formatters";
 import type { TranslationKey } from "@/lib/i18n";
 import type { ExportPayload } from "@/lib/smart-paper-types";
 import { useLanguage } from "@/lib/use-language";
@@ -32,17 +33,32 @@ function isShareCancellation(error: unknown): boolean {
 }
 
 export function AiReportPanel({
+  initialContext,
   financeSource,
   onFinanceExpired,
   onFinanceRefreshed,
 }: {
+  initialContext: ReportWeekContext;
   financeSource: ExportPayload | null;
   onFinanceExpired: () => void;
   onFinanceRefreshed: (source: ExportPayload) => void;
 }) {
   const { language, t } = useLanguage();
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Capture entry once; edits and language changes must not reapply the URL range.
+  const [entryContext] = useState(initialContext);
+  const [startDate, setStartDate] = useState(initialContext.status === "valid" ? initialContext.startDate : "");
+  const [endDate, setEndDate] = useState(initialContext.status === "valid" ? initialContext.endDate : "");
+  const [invalidContext, setInvalidContext] = useState(initialContext.status === "invalid");
+  const [awaitingDateChoice, setAwaitingDateChoice] = useState(initialContext.status === "invalid");
+  const [showWeekContext, setShowWeekContext] = useState(initialContext.status === "valid");
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const fromDateRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (entryContext.status === "absent") return;
+    headingRef.current?.scrollIntoView({ block: "start" });
+    headingRef.current?.focus({ preventScroll: true });
+  }, [entryContext]);
   const [include, setInclude] = useState(initialIncluded);
   const [plannerSource, setPlannerSource] = useState<ExportPayload | null>(null);
   const [plannerLoading, setPlannerLoading] = useState(true);
@@ -83,7 +99,9 @@ export function AiReportPanel({
   const options: AiReportOptions = { ...(startDate || endDate ? { startDate, endDate } : {}), include };
   let summary: ReturnType<typeof summarizeAiReport> | null = null;
   let selectionError = "";
-  if (source) {
+  const contextBlocked = invalidContext ||
+    (awaitingDateChoice && !isCompleteReportDateRange(startDate, endDate));
+  if (source && !contextBlocked) {
     try { summary = summarizeAiReport(source, options); }
     catch { selectionError = t("aiInvalidRange"); }
   }
@@ -91,7 +109,7 @@ export function AiReportPanel({
     ? formatAiReport(source, options)
     : "";
   const noData = !!summary && !summary.weeks && !summary.incomeEntries && !include.financeGoal;
-  const actionsDisabled = isLoading || isBusy || !source || needsUnlock || !summary?.hasSelection ||
+  const actionsDisabled = contextBlocked || isLoading || isBusy || !source || needsUnlock || !summary?.hasSelection ||
     !!selectionError || noData;
 
   useEffect(() => {
@@ -196,24 +214,39 @@ export function AiReportPanel({
     }
   }
 
-  const lockControls = isBusy;
+  const lockControls = isBusy || invalidContext;
   return (
-    <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-teal-200 bg-white p-5">
-      <h2 className="text-xl font-bold">{t("aiShareTitle")}</h2>
+    <section id="ai-report" className="scroll-mt-4 mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-teal-200 bg-white p-5">
+      <h2 ref={headingRef} tabIndex={-1} className="text-xl font-bold focus-visible:outline-2 focus-visible:outline-teal-700">{t("aiShareTitle")}</h2>
       <p className="mt-2 text-sm text-[#536660]">{t("aiShareDescription")}</p>
 
+      {invalidContext ? <div className="mt-4">
+        <p role="alert" className="text-sm text-rose-700">{t("aiInvalidWeekContext")}</p>
+        <button type="button" className="mt-2 min-h-12 rounded-xl border border-[#b6c9bf] px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal-700"
+          onClick={() => {
+            setInvalidContext(false);
+            setShowWeekContext(false);
+            window.setTimeout(() => fromDateRef.current?.focus(), 0);
+          }}>{t("aiChooseReportDates")}</button>
+      </div> : null}
+      {showWeekContext && entryContext.status === "valid" ? <p className="mt-4 text-sm text-[#536660]">
+        {t("aiViewedWeekContext")}<bdi className="mt-1 block">{// The shared formatter uses Date's 0–99 => 1900–1999 shortcut; retain exact ISO bounds for these rare years.
+          Number(entryContext.startDate.slice(0, 4)) < 100
+            ? `${entryContext.startDate} – ${entryContext.endDate}`
+            : formatReadableShamsiWeekRange(entryContext.startDate, entryContext.endDate, language)}</bdi>
+      </p> : null}
       <fieldset disabled={lockControls} className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <label className="text-sm font-semibold">{t("aiDateFrom")}
-          <input aria-invalid={!!selectionError} type="date" dir="ltr" value={startDate}
-            onChange={(event) => { setStartDate(event.target.value); clearFeedback(); }}
+          <input ref={fromDateRef} aria-invalid={!!selectionError} type="date" dir="ltr" value={startDate}
+            onChange={(event) => { setStartDate(event.target.value); setShowWeekContext(false); clearFeedback(); }}
             className="mt-1 block w-full rounded-xl border border-[#b6c9bf] bg-white px-3 py-3 text-[#172b29] focus:border-teal-700" />
         </label>
         <label className="text-sm font-semibold">{t("aiDateTo")}
           <input aria-invalid={!!selectionError} type="date" dir="ltr" value={endDate}
-            onChange={(event) => { setEndDate(event.target.value); clearFeedback(); }}
+            onChange={(event) => { setEndDate(event.target.value); setShowWeekContext(false); clearFeedback(); }}
             className="mt-1 block w-full rounded-xl border border-[#b6c9bf] bg-white px-3 py-3 text-[#172b29] focus:border-teal-700" />
         </label>
-        <button type="button" onClick={() => { setStartDate(""); setEndDate(""); clearFeedback(); }}
+        <button type="button" onClick={() => { setStartDate(""); setEndDate(""); setShowWeekContext(false); setAwaitingDateChoice(false); clearFeedback(); }}
           className="min-h-11 rounded-xl border border-[#b6c9bf] px-4 py-3 text-sm font-semibold hover:border-teal-700">{t("aiAllDates")}</button>
       </fieldset>
       <p className="mt-2 text-xs text-[#536660]">{t("aiDateHint")}</p>
@@ -237,6 +270,7 @@ export function AiReportPanel({
 
       <div className="mt-5 rounded-xl bg-[#f1f5f2] p-4">
         <p className="text-sm font-semibold">{t("aiPreview")}</p>
+        {!invalidContext && contextBlocked ? <p className="mt-1 text-sm">{t("aiInvalidRange")}</p> : null}
         {isLoading ? <p className="mt-1 text-sm">{t("loading")}</p> : null}
         {needsUnlock ? <p className="mt-1 text-sm text-amber-900"><a href="#export-finance-unlock" className="underline">{t("aiUnlockFinance")}</a></p> : null}
         {selectionError ? <p className="mt-1 text-sm text-rose-700">{selectionError}</p> : null}
@@ -255,7 +289,8 @@ export function AiReportPanel({
           className="mt-2 min-h-11 rounded-xl border border-[#b6c9bf] px-4 py-2 font-semibold hover:border-teal-700 disabled:opacity-60">{t("aiSelectReport")}</button>
       </details> : null}
 
-      <p className="mt-4 text-sm text-[#536660]">{t("aiShareHint")}</p>
+      <p className="mt-4 text-sm text-[#536660]">{t("aiOfflinePreparation")}</p>
+      <p className="mt-2 text-sm text-[#536660]">{t("aiShareHint")}</p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => void transfer("copy")} disabled={actionsDisabled}
           className="min-h-11 rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60">

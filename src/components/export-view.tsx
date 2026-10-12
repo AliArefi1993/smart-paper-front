@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { readReportWeekContext } from "@/lib/report-week-context";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { AiReportPanel } from "@/components/ai-report-panel";
 import { LanguageToggle } from "@/components/language-toggle";
@@ -27,6 +29,8 @@ function isForbidden(errorValue: unknown): boolean {
 }
 
 export function ExportView() {
+  const searchParams = useSearchParams();
+  const reportContext = readReportWeekContext(new URLSearchParams(searchParams.toString()));
   const { language, isPersian, t } = useLanguage();
   const financeVisibility = useFinanceVisibility();
   const [payload, setPayload] = useState<ExportPayload | null>(null);
@@ -234,7 +238,7 @@ export function ExportView() {
         </div>
       </section>
 
-      {isLocalDataMode ? <AiReportPanel financeSource={payload} onFinanceRefreshed={setPayload} onFinanceExpired={() => {
+      {isLocalDataMode ? <AiReportPanel key={JSON.stringify(searchParams.getAll("reportWeek"))} initialContext={reportContext} financeSource={payload} onFinanceRefreshed={setPayload} onFinanceExpired={() => {
         setPayload(null);
         setIsLocked(true);
       }} /> : null}

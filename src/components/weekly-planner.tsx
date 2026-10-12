@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { GrowingTextarea } from "@/components/growing-textarea";
@@ -31,6 +32,7 @@ import type { TranslationKey } from "@/lib/i18n";
 import { useLanguage } from "@/lib/use-language";
 import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import { useTheme } from "@/lib/use-theme";
+import { buildReportWeekHref, plannerReportBlockReason } from "@/lib/report-week-context";
 import type {
   DayData,
   PlannerSection,
@@ -243,6 +245,7 @@ const localWeekAutosave = new PlannerLocalAutosave<WeekDetail>(saveLocalWeek);
 const automaticSaving = process.env.NEXT_PUBLIC_DATA_MODE === "local";
 
 export function WeeklyPlanner() {
+  const router = useRouter();
   const { language, isPersian, t } = useLanguage();
   const financeVisibility = useFinanceVisibility();
   const themeMode = useTheme();
@@ -259,6 +262,7 @@ export function WeeklyPlanner() {
   const [isTemplateSheetOpen, setIsTemplateSheetOpen] = useState(false);
   const [isLoadingWeeks, setIsLoadingWeeks] = useState(true);
   const [isLoadingWeek, setIsLoadingWeek] = useState(false);
+  const [reportWeekLoadFailed, setReportWeekLoadFailed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -365,6 +369,7 @@ export function WeeklyPlanner() {
   }
 
   async function fetchWeek(startDate: string) {
+    setReportWeekLoadFailed(false);
     const request = ++loadRequestRef.current;
     setMessage("");
     setError("");
@@ -378,6 +383,7 @@ export function WeeklyPlanner() {
       queuePlannerNotification(loaded, notificationCopyRef.current);
     } catch (loadError) {
       if (request !== loadRequestRef.current) return;
+      setReportWeekLoadFailed(true);
       setError(
         loadError instanceof Error ? loadError.message : t("loadingSelectedWeek"),
       );
@@ -510,6 +516,7 @@ export function WeeklyPlanner() {
     let cancelled = false;
 
     async function loadInitialData() {
+      setReportWeekLoadFailed(false);
       try {
         const recovered = automaticSaving ? localWeekAutosave.recovery() : null;
         const [weeksPayload, sectionsPayload, templatesPayload] = await Promise.all([
@@ -536,6 +543,7 @@ export function WeeklyPlanner() {
         if (!recovered) queuePlannerNotification(loaded, notificationCopyRef.current);
       } catch (loadError) {
         if (cancelled) return;
+        setReportWeekLoadFailed(true);
         setError(
           loadError instanceof Error ? loadError.message : "Unknown error loading weeks",
         );
@@ -1094,6 +1102,35 @@ export function WeeklyPlanner() {
     </button>;
   }
 
+  function reportShortcutBlockReason(): TranslationKey | null {
+    const reason = plannerReportBlockReason({
+      loading: isLoadingWeeks || isLoadingWeek,
+      loadFailed: reportWeekLoadFailed,
+      saving: isSaving,
+      selectedWeekStart,
+      loadedWeekStart: weekDetail?.start_date ?? null,
+      loadedWeekEnd: weekDetail?.end_date ?? null,
+      pendingWeek: !!pendingWeekStart,
+      saveFailed: saveFailed || localWeekAutosave.hasFailure(),
+      unsaved: hasUnsavedChanges,
+      editorOpen: !!(scheduleDraft || isTemplateSheetOpen || writingView),
+    });
+    return reason ? {
+      loading: "plannerAiShortcutLoading",
+      "save-failed": "plannerAiShortcutSaveFailed",
+      "editor-open": "plannerAiShortcutEditorOpen",
+      unavailable: "plannerAiShortcutUnavailable",
+    }[reason] as TranslationKey : null;
+  }
+
+  function openViewedWeekReport(): void {
+    if (!automaticSaving) return;
+    const reason = reportShortcutBlockReason();
+    const href = weekDetail ? buildReportWeekHref(weekDetail.start_date) : null;
+    if (reason || !href) return;
+    router.push(href);
+  }
+
   function renderLocalNextDayButton() {
     return (
       <button
@@ -1326,9 +1363,29 @@ export function WeeklyPlanner() {
             >
               {t("templates")}
             </button>
+            {automaticSaving ? (
+              <button
+                type="button"
+                onClick={openViewedWeekReport}
+                disabled={!!reportShortcutBlockReason()}
+                aria-describedby="planner-ai-review-help"
+                className={`min-h-12 rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  isDark
+                    ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-700"
+                }`}
+              >
+                {t("plannerAiReviewWeek")}
+              </button>
+            ) : null}
             {renderSaveWeekButton("hidden md:inline-flex")}
           </div>
         </div>
+        {automaticSaving ? (
+          <p id="planner-ai-review-help" className={`mb-4 text-xs leading-5 ${isDark ? "text-[var(--muted-foreground)]" : "text-slate-600"}`}>
+            {t(reportShortcutBlockReason() ?? "plannerAiShortcutDescription")}
+          </p>
+        ) : null}
 
         {isLoadingWeek ? (
           <div className="grid gap-3 md:grid-cols-2">
