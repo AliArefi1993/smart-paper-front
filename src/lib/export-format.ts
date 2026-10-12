@@ -204,7 +204,10 @@ export function formatExportMarkdown(payload: ExportPayload): string {
   return `${lines.join("\n").trim()}\n`;
 }
 
-export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
+export function formatExportXlsx(
+  payload: ExportPayload,
+  writeWorkbook: typeof XLSX.write = XLSX.write,
+): ArrayBuffer {
   const workbook = XLSX.utils.book_new();
 
   const overviewRows: Array<Array<string | number>> = [
@@ -332,5 +335,5 @@ export function formatExportXlsx(payload: ExportPayload): ArrayBuffer {
   );
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(incomeRows), "Income");
 
-  return XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  return writeWorkbook(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
 }

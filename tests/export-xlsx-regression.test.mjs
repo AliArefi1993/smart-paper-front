@@ -199,3 +199,100 @@ test("XLSX export keeps all six sheets and headers for empty planner and income 
   assert.equal(sheets[4].cells.size, 4);
   assert.equal(sheets[5].cells.size, 4);
 });
+
+test("XLSX export errors leave the source payload unchanged", () => {
+  const originalPayload = structuredClone(populatedPayload);
+  let writerReceivedWorkbook = false;
+  const failingWriter = (workbook) => {
+    writerReceivedWorkbook = true;
+    assert.equal(workbook.SheetNames.length, 6);
+    throw new Error("synthetic writer failure");
+  };
+
+  assert.throws(() => formatExportXlsx(populatedPayload, failingWriter), /synthetic writer failure/);
+  assert.equal(writerReceivedWorkbook, true, "the failure occurs during workbook writing");
+  assert.deepEqual(populatedPayload, originalPayload);
+});
+
+test("XLSX export handles a bounded year-sized synthetic planner", () => {
+  const activeSections = sections.map((section) => ({ ...section, active: true }));
+  const largePayload = {
+    ...structuredClone(populatedPayload),
+    weeks: Array.from({ length: 52 }, (_, weekIndex) => ({
+      ...structuredClone(populatedPayload.weeks[0]),
+      start_date: `2026-${String(Math.floor(weekIndex / 4) + 1).padStart(2, "0")}-01`,
+      end_date: `2026-${String(Math.floor(weekIndex / 4) + 1).padStart(2, "0")}-07`,
+      planner_sections: activeSections,
+      totals: {
+        by_section_minutes: Object.fromEntries(activeSections.map(({ id }) => [id, 60])),
+        week_total_minutes: 600,
+      },
+      days: Array.from({ length: 7 }, (_, dayIndex) => ({
+        ...structuredClone(populatedPayload.weeks[0].days[0]),
+        date: `2026-${String(Math.floor(weekIndex / 4) + 1).padStart(2, "0")}-${String(dayIndex + 1).padStart(2, "0")}`,
+        sections: Object.fromEntries(activeSections.map(({ id }) => [id, {
+          duration_minutes: 6,
+          goal: "bounded synthetic goal",
+          note: "bounded synthetic note",
+        }])),
+        schedule_entries: Array.from({ length: 3 }, (_, eventIndex) => ({
+          id: `w${weekIndex}-d${dayIndex}-e${eventIndex}`,
+          start_time: "09:00",
+          end_time: "09:30",
+          title: "Synthetic schedule item",
+          note: "",
+          section_id: "slot_1",
+          order: eventIndex,
+        })),
+      })),
+    })),
+  };
+
+  const startedAt = performance.now();
+  const output = formatExportXlsx(largePayload);
+  const elapsedMs = performance.now() - startedAt;
+  const sheets = parseWorkbook(output);
+
+  console.log(`Year-sized XLSX: ${elapsedMs.toFixed(0)}ms, ${output.byteLength} bytes`);
+  assert.ok(elapsedMs < 10_000, `year-sized export completed in ${elapsedMs.toFixed(0)}ms`);
+  assert.ok(output.byteLength < 2_000_000, `year-sized workbook is bounded at ${output.byteLength} bytes`);
+  assert.deepEqual(sheets.map(({ name }) => name), ["Overview", "Weeks", "Day Sections", "Schedule", "Day Notes", "Income"]);
+  assert.equal(sheets[1].cells.size, 7 + 52 * activeSections.length * 7);
+  assert.equal(sheets[2].cells.size, 7 + 52 * 7 * activeSections.length * 7);
+  assert.equal(sheets[3].cells.size, 8 + 52 * 7 * 3 * 8);
+});
+
+test("local XLSX export preserves filename and MIME and rejects locked Finance", async () => {
+  process.env.NEXT_PUBLIC_DATA_MODE = "local";
+  const storage = new Map();
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value),
+      removeItem: (key) => storage.delete(key),
+    },
+  };
+
+  const [{ getExportFile }, { unlockLocalFinanceSession }] = await Promise.all([
+    import("../src/lib/export-store.ts"),
+    import("../src/lib/local-store.ts"),
+  ]);
+  await assert.rejects(getExportFile("xlsx"), (error) => error?.status === 403);
+
+  const originalNow = Date.now;
+  let now = originalNow();
+  try {
+    Date.now = () => now;
+    await unlockLocalFinanceSession("1234");
+    const file = await getExportFile("xlsx");
+    assert.equal(file.filename, "smart-paper-export.xlsx");
+    assert.equal(file.mimeType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    assert.ok(file.content instanceof ArrayBuffer);
+    assert.deepEqual(parseWorkbook(file.content).map(({ name }) => name), ["Overview", "Weeks", "Day Sections", "Schedule", "Day Notes", "Income"]);
+
+    now += 60 * 60 * 1000;
+    await assert.rejects(getExportFile("xlsx"), (error) => error?.status === 403);
+  } finally {
+    Date.now = originalNow;
+  }
+});
