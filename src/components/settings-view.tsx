@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
@@ -16,14 +16,21 @@ import {
   savePlannerSections,
 } from "@/lib/planner-store";
 import { useLanguage } from "@/lib/use-language";
+import { retryFinanceVisibility, setFinanceVisible } from "@/lib/finance-visibility";
+import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import type {
   MorningNotificationSettings,
   PlannerSection,
   SectionName,
 } from "@/lib/smart-paper-types";
 
+const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
+
 export function SettingsView() {
   const { isPersian, t } = useLanguage();
+  const financeVisibility = useFinanceVisibility();
+  const [financeVisibilityNotice, setFinanceVisibilityNotice] = useState<"visible" | "hidden" | "saved" | null>(null);
+  const financeVisibilityFocused = useRef(false);
   const [sections, setSections] = useState<PlannerSection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -42,6 +49,13 @@ export function SettingsView() {
   );
   const hasBlankLabel = sections.some((section) => !section.label.trim());
   const canSave = sections.length > 0 && !isSaving;
+
+  useEffect(() => {
+    if (isLocalDataMode && !isLoading && financeVisibility.initialized && window.location.hash === "#finance-visibility" && !financeVisibilityFocused.current) {
+      financeVisibilityFocused.current = true;
+      document.getElementById("finance-visibility-checkbox")?.focus();
+    }
+  }, [financeVisibility.initialized, isLoading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +222,44 @@ export function SettingsView() {
           </Link>
         </div>
       </section>
+
+      {isLocalDataMode ? (
+        <section id="finance-visibility" className="mx-auto mt-6 w-full max-w-5xl rounded-2xl border border-[#d9e4de] bg-white p-5">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+            <div>
+              <h2 className="text-lg font-semibold">{t("financeVisibilityTitle")}</h2>
+              <p id="finance-visibility-help" className="mt-1 text-sm leading-6 text-[#536660]">{t("financeVisibilityDescription")}</p>
+            </div>
+            {financeVisibility.initialized ? <label className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-[#d9e4de] bg-white px-4 py-3 md:min-w-48">
+              <span className="text-sm font-semibold text-[#172b29]">{t("showFinance")}</span>
+              <input
+                id="finance-visibility-checkbox"
+                type="checkbox"
+                checked={financeVisibility.visible}
+                disabled={!financeVisibility.initialized}
+                aria-describedby="finance-visibility-help"
+                onChange={(event) => {
+                  setFinanceVisibilityNotice(null);
+                  if (setFinanceVisible(event.target.checked)) setFinanceVisibilityNotice(event.target.checked ? "visible" : "hidden");
+                }}
+                className="h-5 w-5 accent-teal-500"
+              />
+            </label> : <p className="text-sm text-[#536660]">{t("loadingSettings")}</p>}
+          </div>
+          {financeVisibility.error ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+              <p role="alert" className="leading-6 text-amber-900">
+                {financeVisibility.error === "unavailable" ? t(financeVisibility.visible ? "financeVisibilityUnreadableVisible" : "financeVisibilityUnreadableHidden") : financeVisibility.error === "malformed" ? t("financeVisibilityMalformed") : financeVisibility.error === "missing" ? t("financeVisibilityMissing") : t(financeVisibility.visible ? "financeVisibilityVisibleSaveFailed" : "financeVisibilityHiddenSaveFailed")}
+              </p>
+              <button type="button" onClick={() => { setFinanceVisibilityNotice(null); if (retryFinanceVisibility()) setFinanceVisibilityNotice("saved"); }} className="min-h-12 rounded-xl border border-[#b6c9bf] px-4 py-2 font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800">
+                {t("trySavingAgain")}
+              </button>
+            </div>
+          ) : null}
+          {(financeVisibilityNotice === "visible" && financeVisibility.visible) ? <p role="status" className="mt-3 text-sm font-semibold text-emerald-800">{t("financeVisibilityNowVisible")}</p> : (financeVisibilityNotice === "hidden" && !financeVisibility.visible) ? <p role="status" className="mt-3 text-sm font-semibold text-emerald-800">{t("financeVisibilityNowHidden")}</p> : financeVisibilityNotice === "saved" ? <p role="status" className="mt-3 text-sm font-semibold text-emerald-800">{t("financeVisibilitySaved")}</p> : null}
+          {financeVisibilityNotice === "visible" && financeVisibility.visible ? <Link href="/finance" onClick={handleSettingsNavigation} className="mt-3 inline-flex min-h-12 items-center rounded-xl border border-[#b6c9bf] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800">{t("openFinance")}</Link> : null}
+        </section>
+      ) : null}
 
       <section className="mx-auto mt-6 w-full max-w-5xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("loadingSettings")}</p> : null}

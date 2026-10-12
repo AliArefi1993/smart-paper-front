@@ -14,6 +14,7 @@ import type { TranslationKey } from "@/lib/i18n";
 import { activePlannerSections, normalizeWeekSummary } from "@/lib/planner-sections";
 import { getWeekSummaries } from "@/lib/planner-store";
 import { useLanguage } from "@/lib/use-language";
+import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import type { WeekSummary } from "@/lib/smart-paper-types";
 const WEEKDAY_TRANSLATION_KEYS: Record<string, TranslationKey> = {
   Saturday: "saturday",
@@ -44,6 +45,7 @@ function hasSummaryContent(week: WeekSummary): boolean {
 
 export function WeekSummariesView() {
   const { language, isPersian, t } = useLanguage();
+  const financeVisibility = useFinanceVisibility();
   const [summaries, setSummaries] = useState<WeekSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -102,12 +104,14 @@ export function WeekSummariesView() {
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <LanguageToggle />
           <AppearanceToggle />
-          <Link
-            href="/finance"
-            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800"
-          >
-            {t("finance")}
-          </Link>
+          {financeVisibility.initialized && financeVisibility.visible ? (
+            <Link
+              href="/finance"
+              className="min-h-12 rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800"
+            >
+              {t("finance")}
+            </Link>
+          ) : null}
           <Link
             href="/export"
             className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800"

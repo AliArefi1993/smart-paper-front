@@ -16,6 +16,7 @@ import { checkFinanceSession, unlockFinanceSession } from "@/lib/finance-store";
 import { shareOrDownloadFile } from "@/lib/file-share";
 import { validateLocalBackup } from "@/lib/local-import-safety";
 import { useLanguage } from "@/lib/use-language";
+import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
 
 const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
@@ -27,6 +28,7 @@ function isForbidden(errorValue: unknown): boolean {
 
 export function ExportView() {
   const { language, isPersian, t } = useLanguage();
+  const financeVisibility = useFinanceVisibility();
   const [payload, setPayload] = useState<ExportPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFormat, setActiveFormat] = useState<ExportFormat | null>(null);
@@ -37,6 +39,7 @@ export function ExportView() {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [hasSuccessfulLocalImport, setHasSuccessfulLocalImport] = useState(false);
 
   async function loadExportPreview() {
     const nextPayload = await getExportPayload();
@@ -163,6 +166,7 @@ export function ExportView() {
     setIsImporting(true);
     setError("");
     setMessage("");
+    setHasSuccessfulLocalImport(false);
     try {
       const raw = await file.text();
       const importedPayload = JSON.parse(raw) as ExportPayload;
@@ -178,6 +182,7 @@ export function ExportView() {
       }
       const result = await importExportPayload(importedPayload, importMode);
       setPayload(result.payload);
+      setHasSuccessfulLocalImport(isLocalDataMode);
       setMessage(
         `${t("importData")}: ${formatNumber(result.weeks_imported, language)} ${t("weeks")}, ${formatNumber(result.income_entries_imported, language)} ${t("incomeEntries")}.`,
       );
@@ -208,18 +213,18 @@ export function ExportView() {
           <p className="mt-2 text-sm text-[#536660]">
             {t("saveBackupReadable")}
           </p>
+          {isLocalDataMode ? <p className="mt-2 text-sm leading-6 text-[#536660]">{t("financeVisibilityBackupNotice")}</p> : null}
           {isLocalDataMode ? <p className="mt-2 text-sm text-amber-900">{t("backupNotice")}</p> : null}
           {isLocalDataMode ? <p className="mt-2 text-sm leading-6 text-amber-900">{t("androidBackupPolicyNotice")}</p> : null}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <LanguageToggle />
           <AppearanceToggle />
-          <Link
-            href="/finance"
-            className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800"
-          >
-            {t("finance")}
-          </Link>
+          {financeVisibility.initialized && financeVisibility.visible ? (
+            <Link href="/finance" className="min-h-12 rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800">
+              {t("finance")}
+            </Link>
+          ) : null}
           <Link
             href="/"
             className="rounded-xl border border-[#b6c9bf] bg-[#f1f5f2] px-4 py-2 text-sm font-semibold hover:border-teal-700 hover:text-teal-800"
@@ -237,7 +242,7 @@ export function ExportView() {
       <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("preparingExport")}</p> : null}
         {error ? <p role="alert" className="text-rose-700">{error}</p> : null}
-        {message ? <p role="status" className="text-emerald-800">{message}</p> : null}
+        {message ? <p role="status" className="text-emerald-800">{message}{hasSuccessfulLocalImport && financeVisibility.initialized && !financeVisibility.visible ? <> {t("restoredFinanceAccess")} <Link className="inline-flex min-h-12 items-center font-semibold underline" href="/settings#finance-visibility">{t("financeVisibilitySettingsLink")}</Link></> : null}</p> : null}
 
         {isLocked ? (
           <form

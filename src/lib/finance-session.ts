@@ -35,6 +35,25 @@ export class FinanceSessionLifecycle {
 
 export const FINANCE_SESSION_CHECK_MS = 30_000;
 
+type FinanceVisibilitySnapshot = { initialized: boolean; visible: boolean };
+
+export function watchFinanceVisibility(
+  getSnapshot: () => FinanceVisibilitySnapshot,
+  subscribe: (listener: () => void) => () => void,
+  onHidden: () => void,
+): () => void {
+  let lastVisible: boolean | null = getSnapshot().initialized
+    ? getSnapshot().visible
+    : null;
+  return subscribe(() => {
+    const next = getSnapshot();
+    if (!next.initialized) return;
+    const wasVisible = lastVisible;
+    lastVisible = next.visible;
+    if (!next.visible && wasVisible !== false) onHidden();
+  });
+}
+
 export function watchFinanceSession(
   windowTarget: Pick<Window, "setInterval" | "clearInterval" | "addEventListener" | "removeEventListener">,
   documentTarget: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">,

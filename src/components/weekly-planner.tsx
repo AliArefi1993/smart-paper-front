@@ -29,6 +29,7 @@ import { isLocalWeekStored, saveLocalWeek } from "@/lib/local-store";
 import { PlannerLocalAutosave } from "@/lib/planner-local-autosave";
 import type { TranslationKey } from "@/lib/i18n";
 import { useLanguage } from "@/lib/use-language";
+import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import { useTheme } from "@/lib/use-theme";
 import type {
   DayData,
@@ -243,6 +244,7 @@ const automaticSaving = process.env.NEXT_PUBLIC_DATA_MODE === "local";
 
 export function WeeklyPlanner() {
   const { language, isPersian, t } = useLanguage();
+  const financeVisibility = useFinanceVisibility();
   const themeMode = useTheme();
   const [weeks, setWeeks] = useState<WeekItem[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
@@ -1183,13 +1185,15 @@ export function WeeklyPlanner() {
             >
               {t("summaries")}
             </Link>
-            <Link
-              href="/finance"
-              onClick={handlePlannerNavigation}
-              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
-            >
-              {t("finance")}
-            </Link>
+            {financeVisibility.initialized && financeVisibility.visible ? (
+              <Link
+                href="/finance"
+                onClick={handlePlannerNavigation}
+                className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-semibold transition ${navigationLinkClass}`}
+              >
+                {t("finance")}
+              </Link>
+            ) : null}
             <Link
               href="/export"
               onClick={handlePlannerNavigation}

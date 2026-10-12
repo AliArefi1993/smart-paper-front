@@ -18,8 +18,10 @@ import {
   saveFinanceGoal,
   unlockFinanceSession,
 } from "@/lib/finance-store";
-import { FinanceSessionLifecycle, watchFinanceSession } from "@/lib/finance-session";
+import { FinanceSessionLifecycle, watchFinanceSession, watchFinanceVisibility } from "@/lib/finance-session";
 import { useLanguage } from "@/lib/use-language";
+import { getFinanceVisibilitySnapshot, subscribeFinanceVisibility } from "@/lib/finance-visibility";
+import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import type { FinancePayload, IncomeEntry } from "@/lib/smart-paper-types";
 
 const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
@@ -27,6 +29,7 @@ const usesDefaultLocalPin = isLocalDataMode && !process.env.NEXT_PUBLIC_FINANCE_
 
 export function FinanceView() {
   const { language, isPersian, t } = useLanguage();
+  const financeVisibility = useFinanceVisibility();
   const [data, setData] = useState<FinancePayload | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [isLocked, setIsLocked] = useState(true);
@@ -50,6 +53,7 @@ export function FinanceView() {
   const translation = useRef(t);
   const sensitiveContent = useRef<HTMLDivElement>(null);
   const lockHeading = useRef<HTMLHeadingElement>(null);
+  const hiddenHeading = useRef<HTMLHeadingElement>(null);
   const restoreLockFocus = useRef(false);
 
   useEffect(() => { translation.current = t; }, [t]);
@@ -83,6 +87,17 @@ export function FinanceView() {
   }, [session]);
 
   useEffect(() => {
+    if (!isLocalDataMode) return;
+    return watchFinanceVisibility(getFinanceVisibilitySnapshot, subscribeFinanceVisibility, forceLock);
+  }, [forceLock]);
+
+  useEffect(() => {
+    if (isLocalDataMode && financeVisibility.initialized && !financeVisibility.visible) {
+      hiddenHeading.current?.focus({ preventScroll: true });
+    }
+  }, [financeVisibility.initialized, financeVisibility.visible]);
+
+  useEffect(() => {
     if (isLocked && !isLoading && restoreLockFocus.current) {
       restoreLockFocus.current = false;
       lockHeading.current?.focus({ preventScroll: true });
@@ -91,6 +106,9 @@ export function FinanceView() {
   }, [isLocked, isLoading]);
 
   useEffect(() => {
+    if (isLocalDataMode && (!financeVisibility.initialized || !financeVisibility.visible)) {
+      return;
+    }
     const generation = session.begin();
     async function bootstrap() {
       try {
@@ -113,10 +131,10 @@ export function FinanceView() {
     }
     void bootstrap();
     return () => { session.begin(); };
-  }, [session, forceLock]);
+  }, [session, forceLock, financeVisibility.initialized, financeVisibility.visible]);
 
   useEffect(() => {
-    if (isLocked) return;
+    if (isLocked || (isLocalDataMode && (!financeVisibility.initialized || !financeVisibility.visible))) return;
     const generation = session.current();
     let active = true;
     const cleanup = watchFinanceSession(window, document, async () => {
@@ -132,7 +150,7 @@ export function FinanceView() {
       active = false;
       cleanup();
     };
-  }, [isLocked, session, forceLock, t]);
+  }, [isLocked, session, forceLock, t, financeVisibility.initialized, financeVisibility.visible]);
 
   async function canPublish(generation: number): Promise<boolean> {
     return session.validate(generation, checkFinanceSession, () =>
@@ -359,11 +377,21 @@ export function FinanceView() {
         </div>
       </section>
 
-      {isLoading ? <p className="mx-auto mt-6 w-full max-w-5xl text-[#536660]">{t("loading")}</p> : null}
-      {error ? <p role="alert" className="mx-auto mt-3 w-full max-w-5xl text-rose-700">{error}</p> : null}
-      {message ? <p role="status" className="mx-auto mt-3 w-full max-w-5xl text-emerald-800">{message}</p> : null}
+      {isLocalDataMode && financeVisibility.initialized && !financeVisibility.visible ? (
+        <section className="mx-auto mt-6 w-full max-w-xl rounded-2xl border border-[#d9e4de] bg-white p-5">
+          <h2 ref={hiddenHeading} tabIndex={-1} className="text-xl font-semibold">{t("financeVisibilityHiddenTitle")}</h2>
+          <p className="mt-2 text-sm leading-6 text-[#536660]">{t("financeVisibilityHiddenDescription")}</p>
+          <Link href="/settings#finance-visibility" className="mt-4 inline-flex min-h-12 items-center rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800">
+            {t("financeVisibilitySettingsLink")}
+          </Link>
+        </section>
+      ) : null}
 
-      {!isLoading && isLocked ? (
+      {isLoading && (!isLocalDataMode || !financeVisibility.initialized) ? <p className="mx-auto mt-6 w-full max-w-5xl text-[#536660]">{t("loading")}</p> : null}
+      {(!isLocalDataMode || (financeVisibility.initialized && financeVisibility.visible)) && error ? <p role="alert" className="mx-auto mt-3 w-full max-w-5xl text-rose-700">{error}</p> : null}
+      {(!isLocalDataMode || (financeVisibility.initialized && financeVisibility.visible)) && message ? <p role="status" className="mx-auto mt-3 w-full max-w-5xl text-emerald-800">{message}</p> : null}
+
+      {(!isLocalDataMode || (financeVisibility.initialized && financeVisibility.visible)) && !isLoading && isLocked ? (
         <section className="mx-auto mt-6 w-full max-w-md rounded-2xl border border-amber-300 bg-amber-50 p-5">
           <h2 ref={lockHeading} tabIndex={-1} className="text-lg font-semibold text-amber-900">{t("financeIsLocked")}</h2>
           <p className="mt-2 text-sm text-amber-900">
@@ -390,7 +418,7 @@ export function FinanceView() {
         </section>
       ) : null}
 
-      {data && !isLocked ? (
+      {(!isLocalDataMode || (financeVisibility.initialized && financeVisibility.visible)) && data && !isLocked ? (
         <div ref={sensitiveContent}>
           <section className="mx-auto mt-3 flex w-full max-w-5xl justify-end">
             <button
