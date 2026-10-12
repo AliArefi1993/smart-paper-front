@@ -380,6 +380,7 @@ export function FinanceView() {
       {isLocalDataMode && financeVisibility.initialized && !financeVisibility.visible ? (
         <section className="mx-auto mt-6 w-full max-w-xl rounded-2xl border border-[#d9e4de] bg-white p-5">
           <h2 ref={hiddenHeading} tabIndex={-1} className="text-xl font-semibold">{t("financeVisibilityHiddenTitle")}</h2>
+          <p className="mt-2 text-sm leading-6 text-[#536660]">{t("financeVisibilityPreservation")}</p>
           <p className="mt-2 text-sm leading-6 text-[#536660]">{t("financeVisibilityHiddenDescription")}</p>
           <Link href="/settings#finance-visibility" className="mt-4 inline-flex min-h-12 items-center rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800">
             {t("financeVisibilitySettingsLink")}

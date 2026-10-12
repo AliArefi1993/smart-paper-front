@@ -229,6 +229,7 @@ export function SettingsView() {
             <div>
               <h2 className="text-lg font-semibold">{t("financeVisibilityTitle")}</h2>
               <p id="finance-visibility-help" className="mt-1 text-sm leading-6 text-[#536660]">{t("financeVisibilityDescription")}</p>
+              <p className="mt-2 text-sm leading-6 text-[#536660]">{t("financeVisibilityPreservation")}</p>
             </div>
             {financeVisibility.initialized ? <label className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-[#d9e4de] bg-white px-4 py-3 md:min-w-48">
               <span className="text-sm font-semibold text-[#172b29]">{t("showFinance")}</span>
