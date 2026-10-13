@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
-import { dailyIdeaNote, readIdeaNotes, writeIdeaNotes, type IdeaNote } from "@/lib/idea-notes";
+import { IdeaReader } from "@/components/idea-reader";
+import { backIdeaReader, hopIdeaReader, ideaPreview } from "@/lib/idea-reader";
+import { dailyIdeaNote, readIdeaNotes, writeIdeaNotes, IDEA_NOTES_KEY, type IdeaNote } from "@/lib/idea-notes";
 import { commitIdeaDraft, IdeaDraftCommitError, ideaDraftIssue, isIdeaDraftDirty, newIdeaDraft, readIdeaDraft, writeIdeaDraft, IDEA_DRAFT_KEY, type IdeaDraft } from "@/lib/idea-draft";
 import { useLanguage } from "@/lib/use-language";
 
@@ -40,12 +42,21 @@ export function IdeaSpace() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [readerContextDay, setReaderContextDay] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [readerPath, setReaderPath] = useState<string[]>([]);
+  const [readerEntry, setReaderEntry] = useState<"collection" | "daily">("collection");
+  const [readerReadFailed, setReaderReadFailed] = useState(false);
+  const readerContext = useRef<{ trigger: HTMLButtonElement; x: number; y: number } | null>(null);
+  const collectionHeading = useRef<HTMLHeadingElement>(null);
+  const dailyHeading = useRef<HTMLHeadingElement>(null);
+  const reading = readerPath.length > 0;
   const localMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
 
   const c = (en: string, fa: string) => isPersian ? fa : en;
 
   function loadWriting() {
+    setReaderContextDay(null);
     try {
       const saved = readIdeaNotes(window.localStorage);
       const retainedInSession = failedDraft !== null;
@@ -78,6 +89,7 @@ export function IdeaSpace() {
   }, [localMode]);
 
   function updateDraft(next: IdeaDraft) {
+    if (!reading) setReaderContextDay(null);
     setDraft(next);
     setMessage("");
     setSaveFailed(false);
@@ -85,7 +97,8 @@ export function IdeaSpace() {
     catch { failedDraft = next; setDraftError("write"); }
   }
 
-  const today = dayKey();
+  // Preserve a reader entry across midnight; ordinary discovery still uses today.
+  const today = readerContextDay ?? dayKey();
   const featured = useMemo(() => dailyIdeaNote(notes, today), [notes, today]);
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -98,6 +111,57 @@ export function IdeaSpace() {
   const needsDecision = issue === "missing" || issue === "conflict";
   const latest = notes.find((note) => note.id === (draft.source?.id ?? draft.receipt?.id));
 
+  function refreshReaderNotes() {
+    try {
+      const current = readIdeaNotes(window.localStorage);
+      setNotes(current);
+      setReaderReadFailed(false);
+      return current;
+    } catch { setReaderReadFailed(true); return null; }
+  }
+
+  useEffect(() => {
+    if (!reading) return;
+    const refresh = (event: StorageEvent) => {
+      if (event.storageArea === window.localStorage && (event.key === IDEA_NOTES_KEY || event.key === null)) refreshReaderNotes();
+    };
+    window.addEventListener("storage", refresh);
+    return () => window.removeEventListener("storage", refresh);
+  }, [reading]);
+
+  function openReader(id: string, trigger: HTMLButtonElement, entry: "collection" | "daily") {
+    setReaderContextDay(today);
+    readerContext.current = { trigger, x: window.scrollX, y: window.scrollY };
+    refreshReaderNotes();
+    setReaderEntry(entry);
+    setReaderPath([id]);
+  }
+
+  function exitReader() {
+    const context = readerContext.current;
+    const fallback = readerEntry === "daily" ? dailyHeading : collectionHeading;
+    setReaderPath([]);
+    window.requestAnimationFrame(() => {
+      if (context) window.scrollTo({ left: context.x, top: context.y, behavior: "instant" });
+      (context?.trigger.isConnected ? context.trigger : fallback.current ?? collectionHeading.current)?.focus({ preventScroll: true });
+      readerContext.current = null;
+    });
+  }
+
+  function readerBack() {
+    if (readerPath.length === 1) exitReader();
+    else setReaderPath(backIdeaReader);
+  }
+
+  function readerSelect(id: string, mode: "edit" | "branch") {
+    const current = refreshReaderNotes();
+    if (current && ideaDraftIssue(draft, current) === "committed") { setDraftError("cleanup"); return; }
+    const target = current?.find((note) => note.id === id);
+    if (!target || !selectNote(target, mode)) return;
+    setReaderPath([]);
+    readerContext.current = null;
+  }
+
   function resetComposer() {
     if (isIdeaDraftDirty(draft) && !committed && !window.confirm(c(
       "Discard unsaved writing? Continuing discards current writing. Keep editing to save it first.",
@@ -105,6 +169,7 @@ export function IdeaSpace() {
     try { window.localStorage.removeItem(IDEA_DRAFT_KEY); }
     catch { setDraftError(committed ? "cleanup" : "write"); return; }
     setDraft(newIdeaDraft());
+    setReaderContextDay(null);
     failedDraft = null;
     setDraftError(null);
     setSaveFailed(false);
@@ -114,6 +179,7 @@ export function IdeaSpace() {
   }
 
   function saveWriting(activeDraft = draft) {
+    if (!reading) setReaderContextDay(null);
     if (!activeDraft.body.trim() && !committed) { setError(t("ideasEmptyError")); inputRef.current?.focus(); return; }
     try {
       const current = readIdeaNotes(window.localStorage);
@@ -142,16 +208,31 @@ export function IdeaSpace() {
   }
 
   function selectNote(note: IdeaNote, mode: "edit" | "branch") {
-    if (committed) { setDraftError("cleanup"); return; }
+    if (committed) { setDraftError("cleanup"); return false; }
     if (isIdeaDraftDirty(draft) && !window.confirm(c(
       "Discard unsaved writing? Continuing discards current writing. Keep editing to save it first.",
-      "نوشته ذخیره‌نشده کنار گذاشته شود؟ ادامه دادن نوشته فعلی را کنار می‌گذارد. برای ذخیره، ابتدا ویرایش را ادامه دهید."))) return;
-    updateDraft({ version: 1, mode, body: mode === "edit" ? note.body : "", source: note, receipt: null });
+      "نوشته ذخیره‌نشده کنار گذاشته شود؟ ادامه دادن نوشته فعلی را کنار می‌گذارد. برای ذخیره، ابتدا ویرایش را ادامه دهید."))) return false;
+    // A native confirmation can stay open while another tab edits or deletes.
+    // Resolve again after acceptance before replacing any unfinished writing.
+    let current: IdeaNote[];
+    try { current = readIdeaNotes(window.localStorage); }
+    catch {
+      if (reading) setReaderReadFailed(true);
+      else setError(t("ideasSaveError"));
+      return false;
+    }
+    setNotes(current);
+    if (ideaDraftIssue(draft, current) === "committed") { setDraftError("cleanup"); return false; }
+    const target = current.find((item) => item.id === note.id);
+    if (!target) return false;
+    updateDraft({ version: 1, mode, body: mode === "edit" ? target.body : "", source: target, receipt: null });
+    setReaderContextDay(null);
     setError("");
     setSparkIndex(null);
     setSparksOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     window.setTimeout(() => inputRef.current?.focus(), 0);
+    return true;
   }
 
   function editNote(note: IdeaNote) { selectNote(note, "edit"); }
@@ -163,6 +244,7 @@ export function IdeaSpace() {
     try {
       const next = readIdeaNotes(window.localStorage).filter((item) => item.id !== note.id);
       writeIdeaNotes(window.localStorage, next);
+      setReaderContextDay(null);
       setNotes(next);
       setError("");
       setMessage(t("ideasDeleted"));
@@ -176,7 +258,7 @@ export function IdeaSpace() {
 
   return (
     <main dir={isPersian ? "rtl" : "ltr"} className="sp-page min-h-screen px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-6">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-5xl" inert={reading} aria-hidden={reading || undefined}>
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-800">Smart Paper</p>
@@ -189,6 +271,10 @@ export function IdeaSpace() {
         {!localMode ? <p role="alert" className="mt-6 rounded-xl bg-amber-50 p-4 text-amber-900">{t("ideasLocalOnly")}</p> : null}
         {error ? <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p> : null}
         {message ? <p role="status" className="mt-5 text-sm font-semibold text-emerald-800">{message}</p> : null}
+        {readerReadFailed ? <div role="alert" className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+          <p>{c("Saved thoughts could not be read. Your writing is unchanged.", "خواندن فکرهای ذخیره‌شده ممکن نشد. نوشتهٔ شما تغییر نکرده است.")}</p>
+          <button type="button" onClick={() => { setReaderContextDay(null); refreshReaderNotes(); }} className={`mt-3 ${smallButton}`}>{c("Retry saved thoughts", "تلاش دوباره برای خواندن فکرها")}</button>
+        </div> : null}
 
         {draftError ? <div role="alert" className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
           <p>{draftError === "load" ? c("Could not read the stored draft or thoughts. Existing draft was left untouched. Retry loading before writing.", "خواندن پیش‌نویس یا فکرهای ذخیره‌شده ممکن نشد. پیش‌نویس قبلی دست‌نخورده است. پیش از نوشتن دوباره بارگذاری کنید.")
@@ -227,27 +313,28 @@ export function IdeaSpace() {
           </section>
           <p className="mt-3 px-2 text-xs text-[#536660]">{t("ideasPrivateHint")}</p>
 
-          {featured ? <section className="mt-6 rounded-[1.25rem] border border-[#e4d8ba] bg-[#fffaf0] p-5 sm:p-6" aria-labelledby="ideas-return-heading">
+          {featured && !readerReadFailed ? <section className="mt-6 rounded-[1.25rem] border border-[#e4d8ba] bg-[#fffaf0] p-5 sm:p-6" aria-labelledby="ideas-return-heading">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#825e25]">{t("ideasReturnEyebrow")}</p>
-            <h2 id="ideas-return-heading" className="mt-1 text-xl font-bold">{t("ideasReturnHeading")}</h2>
+            <h2 id="ideas-return-heading" ref={dailyHeading} tabIndex={-1} className="mt-1 text-xl font-bold">{t("ideasReturnHeading")}</h2>
             <p className="mt-3 whitespace-pre-wrap break-words leading-relaxed">{featured.body}</p>
-            <button type="button" onClick={() => branchFrom(featured)} className={`mt-4 ${smallButton}`}>{t("ideasBranchButton")}</button>
+            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={(event) => openReader(featured.id, event.currentTarget, "daily")} className={`min-h-12 ${smallButton}`} aria-label={c(`Open daily thought: ${ideaPreview(featured)}`, `باز کردن فکر روز: ${ideaPreview(featured)}`)}>{c("Open thought", "باز کردن فکر")}</button><button type="button" onClick={() => branchFrom(featured)} className={smallButton}>{t("ideasBranchButton")}</button></div>
           </section> : null}
 
           <section className="mt-9" aria-labelledby="ideas-collection-heading">
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-800">{t("ideasCollectionEyebrow")}</p><h2 id="ideas-collection-heading" className="mt-1 text-2xl font-bold">{t("ideasCollectionHeading")}</h2></div>
-              {notes.length > 0 ? <><label htmlFor="ideas-search" className="sr-only">{t("ideasSearch")}</label><input id="ideas-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("ideasSearch")} className="min-h-11 w-full rounded-xl border border-[#b6cfc0] bg-white px-4 sm:max-w-xs" /></> : null}
+              <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-800">{t("ideasCollectionEyebrow")}</p><h2 id="ideas-collection-heading" ref={collectionHeading} tabIndex={-1} className="mt-1 text-2xl font-bold">{t("ideasCollectionHeading")}</h2></div>
+              {notes.length > 0 ? <><label htmlFor="ideas-search" className="sr-only">{t("ideasSearch")}</label><input id="ideas-search" type="search" value={query} onChange={(event) => { setReaderContextDay(null); setQuery(event.target.value); }} placeholder={t("ideasSearch")} className="min-h-11 w-full rounded-xl border border-[#b6cfc0] bg-white px-4 sm:max-w-xs" /></> : null}
             </div>
-            {notes.length === 0 ? <p className="mt-5 rounded-2xl border border-dashed border-[#b6cfc0] p-8 text-center text-[#536660]">{t("ideasEmpty")}</p> : visible.length === 0 ? <p className="mt-5 text-[#536660]">{t("ideasNoMatches")}</p> :
+            {readerReadFailed ? null : notes.length === 0 ? <p className="mt-5 rounded-2xl border border-dashed border-[#b6cfc0] p-8 text-center text-[#536660]">{t("ideasEmpty")}</p> : visible.length === 0 ? <p className="mt-5 text-[#536660]">{t("ideasNoMatches")}</p> :
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {visible.map((note) => {
-                  const origin = notes.find((item) => item.id === note.parent_id);
+                {visible.map((note, index) => {
+                  const origin = note.parent_id !== note.id ? notes.find((item) => item.id === note.parent_id) : null;
                   return <article key={note.id} className={cardClass}>
-                    {origin ? <p className="mb-3 border-s-2 border-teal-500 ps-3 text-xs text-[#536660]">{t("ideasFromThought")}: {origin.body.slice(0, 70)}{origin.body.length > 70 ? "…" : ""}</p> : null}
+                    {origin ? <button type="button" onClick={(event) => openReader(origin.id, event.currentTarget, "collection")} className="mb-3 min-h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-start text-sm text-[var(--foreground)]" aria-label={c(`Open original thought for saved thought ${index + 1}: ${ideaPreview(origin)}`, `باز کردن فکر اصلیِ فکر ذخیره‌شدهٔ ${index + 1}: ${ideaPreview(origin)}`)}>{c("Original thought", "فکر اصلی")}: <bdi>{ideaPreview(origin)}</bdi></button> : <p className="mb-3 text-xs text-[#536660]">{note.parent_id === null ? c("Independent thought", "فکر مستقل") : c("Original thought unavailable", "فکر اصلی در دسترس نیست")}</p>}
                     <p className="whitespace-pre-wrap break-words leading-relaxed text-[#173c36]">{note.body}</p>
                     <p className="mt-4 text-xs text-[#536660]">{new Intl.DateTimeFormat(language === "fa" ? "fa-IR" : "en-US", { dateStyle: "medium" }).format(new Date(note.created_at))}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" onClick={(event) => openReader(note.id, event.currentTarget, "collection")} className={`min-h-12 ${smallButton}`} aria-label={c(`Open saved thought ${index + 1} of ${visible.length}: ${ideaPreview(note)} · ${new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(note.created_at))}`, `باز کردن فکر ذخیره‌شدهٔ ${index + 1} از ${visible.length}: ${ideaPreview(note)} · ${new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium" }).format(new Date(note.created_at))}`)}>{c("Open thought", "باز کردن فکر")}</button>
                       <button type="button" onClick={() => branchFrom(note)} className={smallButton}>{t("ideasBranchButton")}</button>
                       <button type="button" onClick={() => editNote(note)} className={smallButton}>{t("edit")}</button>
                       <button type="button" onClick={() => deleteNote(note)} className="min-h-10 rounded-full px-3 text-sm font-semibold text-rose-800 hover:bg-rose-50">{t("delete")}</button>
@@ -258,6 +345,8 @@ export function IdeaSpace() {
           </section>
         </> : null}
       </div>
+      {reading ? <IdeaReader notes={notes} path={readerPath} entry={readerEntry} isPersian={isPersian} hasDraft={Boolean(draft.body || draft.mode !== "new" || draft.receipt)} readFailed={readerReadFailed}
+        onHop={(id) => { refreshReaderNotes(); setReaderPath((path) => hopIdeaReader(path, id)); }} onBack={readerBack} onExit={exitReader} onSelect={readerSelect} /> : null}
     </main>
   );
 }
