@@ -1,3 +1,4 @@
+import { readFinanceCredentialSnapshot, verifyFinancePin, subscribeFinanceCredential } from "@/lib/finance-credential";
 import type {
   DayData,
   ExportPayload,
@@ -38,6 +39,8 @@ const FINANCE_KEY = "smart-paper.local.finance";
 const FINANCE_UNLOCK_TTL_SECONDS = 3600;
 // Authorization must not migrate with Android backups or survive a new runtime.
 let financeUnlockedUntil = 0;
+let authorizedCredential: string | null | undefined;
+subscribeFinanceCredential(() => { financeUnlockedUntil = 0; authorizedCredential = undefined; });
 
 type StoredWeeks = Record<string, WeekDetail>;
 type StoredFinance = {
@@ -415,19 +418,16 @@ function formatFinance(finance: StoredFinance): FinancePayload {
   };
 }
 
-function getFinancePin(): string {
-  return process.env.NEXT_PUBLIC_FINANCE_PIN ?? "1234";
-}
-
 function forbiddenResponse(): Response {
   return new Response(null, { status: 403 });
 }
 
 function isFinanceUnlocked(): boolean {
-  return financeUnlockedUntil > Date.now();
+  try { return financeUnlockedUntil > Date.now() && authorizedCredential === readFinanceCredentialSnapshot(); }
+  catch { return false; }
 }
 
-function assertFinanceUnlocked(): void {
+export function assertLocalFinanceUnlocked(): void {
   if (!isFinanceUnlocked()) {
     throw forbiddenResponse();
   }
@@ -438,19 +438,21 @@ export async function checkLocalFinanceSession(): Promise<Response> {
 }
 
 export async function unlockLocalFinanceSession(pin: string): Promise<void> {
-  if (pin !== getFinancePin()) {
+  const snapshot = readFinanceCredentialSnapshot();
+  if (!await verifyFinancePin(pin, snapshot) || readFinanceCredentialSnapshot() !== snapshot) {
     throw forbiddenResponse();
   }
+  authorizedCredential = snapshot;
   financeUnlockedUntil = Date.now() + FINANCE_UNLOCK_TTL_SECONDS * 1000;
 }
 
 export async function getLocalFinance(): Promise<FinancePayload> {
-  assertFinanceUnlocked();
+  assertLocalFinanceUnlocked();
   return formatFinance(getStoredFinance());
 }
 
 export async function saveLocalFinanceGoal(goalAmount: number): Promise<FinancePayload> {
-  assertFinanceUnlocked();
+  assertLocalFinanceUnlocked();
   const finance = getStoredFinance();
   return writeStoredFinance({
     ...finance,
@@ -462,7 +464,7 @@ export async function addLocalIncome(
   amount: number,
   note: string,
 ): Promise<FinancePayload> {
-  assertFinanceUnlocked();
+  assertLocalFinanceUnlocked();
   const finance = getStoredFinance();
   return writeStoredFinance({
     ...finance,
@@ -479,7 +481,7 @@ export async function addLocalIncome(
 }
 
 export async function deleteLocalIncome(entryId: number): Promise<FinancePayload> {
-  assertFinanceUnlocked();
+  assertLocalFinanceUnlocked();
   const finance = getStoredFinance();
   return writeStoredFinance({
     ...finance,
@@ -493,7 +495,7 @@ export async function editLocalIncome(
   note: string,
   date: string,
 ): Promise<FinancePayload> {
-  assertFinanceUnlocked();
+  assertLocalFinanceUnlocked();
   const finance = getStoredFinance();
   return writeStoredFinance({
     ...finance,
@@ -511,7 +513,7 @@ export async function editLocalIncome(
 }
 
 export async function getLocalExportPayload(): Promise<ExportPayload> {
-  assertFinanceUnlocked();
+  assertLocalFinanceUnlocked();
   const plannerSections = getStoredPlannerSections();
   const weeks = Object.values(getStoredWeeks()).sort((a, b) =>
     a.start_date < b.start_date ? -1 : 1,
@@ -544,7 +546,7 @@ export async function importLocalExportPayload(
   payload: ExportPayload,
   mode: ImportMode,
 ): Promise<ImportResult> {
-  assertFinanceUnlocked();
+  assertLocalFinanceUnlocked();
   validateLocalBackup(payload);
   if (mode !== "merge" && mode !== "replace") {
     throw new Error("Import mode must be merge or replace.");

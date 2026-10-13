@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { assertLocalFinanceUnlocked } from "@/lib/local-store";
+import { flushSync } from "react-dom";
+import { subscribeFinanceCredential, financeCredentialRevision } from "@/lib/finance-credential";
+import { useFinanceCredential } from "@/lib/use-finance-credential";
 import { useSearchParams } from "next/navigation";
 import { readReportWeekContext } from "@/lib/report-week-context";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { AiReportPanel } from "@/components/ai-report-panel";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
@@ -22,7 +26,7 @@ import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
 
 const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
-const usesDefaultLocalPin = isLocalDataMode && !process.env.NEXT_PUBLIC_FINANCE_PIN;
+
 
 function isForbidden(errorValue: unknown): boolean {
   return errorValue instanceof Response && errorValue.status === 403;
@@ -33,6 +37,8 @@ export function ExportView() {
   const reportContext = readReportWeekContext(new URLSearchParams(searchParams.toString()));
   const { language, isPersian, t } = useLanguage();
   const financeVisibility = useFinanceVisibility();
+  const credential = useFinanceCredential();
+  const usesDefaultLocalPin = isLocalDataMode && credential.defaultPin;
   const [payload, setPayload] = useState<ExportPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFormat, setActiveFormat] = useState<ExportFormat | null>(null);
@@ -45,23 +51,37 @@ export function ExportView() {
   const [message, setMessage] = useState("");
   const [hasSuccessfulLocalImport, setHasSuccessfulLocalImport] = useState(false);
 
+  const generation = useRef(0);
+  function isCurrent(epoch: number) { return epoch === generation.current; }
+  useEffect(() => {
+    if (!isLocalDataMode) return;
+    return subscribeFinanceCredential(() => {
+      generation.current++;
+      flushSync(() => { setPayload(null); setIsLocked(true); setPinInput(""); setMessage(""); setError(""); setIsUnlocking(false); setActiveFormat(null); setIsImporting(false); setIsLoading(false); });
+    });
+  }, []);
+  useEffect(() => () => { generation.current++; }, []);
+
   async function loadExportPreview() {
+    const epoch = generation.current;
     const nextPayload = await getExportPayload();
+    if (!isCurrent(epoch)) return;
     setPayload(nextPayload);
     setIsLocked(false);
   }
 
   useEffect(() => {
     let cancelled = false;
+    const epoch = generation.current;
 
     async function bootstrap() {
       try {
         const nextPayload = await getExportPayload();
-        if (cancelled) return;
+        if (cancelled || !isCurrent(epoch)) return;
         setPayload(nextPayload);
         setIsLocked(false);
       } catch (loadError) {
-        if (cancelled) return;
+        if (cancelled || !isCurrent(epoch)) return;
         if (isForbidden(loadError)) {
           setIsLocked(true);
           setError("");
@@ -71,7 +91,7 @@ export function ExportView() {
           loadError instanceof Error ? loadError.message : t("preparingExport"),
         );
       } finally {
-        if (cancelled) return;
+        if (cancelled || !isCurrent(epoch)) return;
         setIsLoading(false);
       }
     }
@@ -111,7 +131,10 @@ export function ExportView() {
   }, [payload]);
 
   async function handleUnlock() {
-    if (!pinInput.trim()) {
+    const epoch = generation.current;
+    const credentialEpoch = financeCredentialRevision();
+    const guard = () => { if (isLocalDataMode) assertLocalFinanceUnlocked(); if (!isCurrent(epoch) || credentialEpoch !== financeCredentialRevision()) throw new Response(null, { status: 403 }); };
+    if (!pinInput) {
       setError(t("enterPin"));
       return;
     }
@@ -121,10 +144,13 @@ export function ExportView() {
     setMessage("");
     try {
       await unlockFinanceSession(pinInput);
+      guard();
       await loadExportPreview();
+      guard();
       setPinInput("");
       setMessage(t("financeUnlocked"));
     } catch (unlockError) {
+      if (!isCurrent(epoch)) return;
       setError(
         isForbidden(unlockError)
           ? t("wrongPin")
@@ -133,19 +159,26 @@ export function ExportView() {
             : t("unlockExport"),
       );
     } finally {
+      if (!isCurrent(epoch)) return;
       setIsUnlocking(false);
     }
   }
 
   async function handleExport(format: ExportFormat) {
+    const epoch = generation.current;
+    const credentialEpoch = financeCredentialRevision();
+    const guard = () => { if (isLocalDataMode) assertLocalFinanceUnlocked(); if (!isCurrent(epoch) || credentialEpoch !== financeCredentialRevision()) throw new Response(null, { status: 403 }); };
     setActiveFormat(format);
     setError("");
     setMessage("");
     try {
       const file = await getExportFile(format);
-      await shareOrDownloadFile(file.filename, file.mimeType, file.content);
+      guard();
+      await shareOrDownloadFile(file.filename, file.mimeType, file.content, guard);
+      guard();
       setMessage(`${file.filename} ${t("exportReady")}`);
     } catch (exportError) {
+      if (!isCurrent(epoch)) return;
       if (isForbidden(exportError)) {
         setIsLocked(true);
         setPayload(null);
@@ -158,11 +191,15 @@ export function ExportView() {
           : t("exportData"),
       );
     } finally {
+      if (!isCurrent(epoch)) return;
       setActiveFormat(null);
     }
   }
 
   async function handleImport(event: ChangeEvent<HTMLInputElement>) {
+    const epoch = generation.current;
+    const credentialEpoch = financeCredentialRevision();
+    const guard = () => { if (isLocalDataMode) assertLocalFinanceUnlocked(); if (!isCurrent(epoch) || credentialEpoch !== financeCredentialRevision()) throw new Response(null, { status: 403 }); };
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
@@ -173,6 +210,7 @@ export function ExportView() {
     setHasSuccessfulLocalImport(false);
     try {
       const raw = await file.text();
+      guard();
       const importedPayload = JSON.parse(raw) as ExportPayload;
       if (isLocalDataMode) validateLocalBackup(importedPayload);
       let importDetails = file.name;
@@ -184,13 +222,16 @@ export function ExportView() {
       if (importMode === "replace" && !window.confirm(`${importDetails}\n\n${t("replaceImportConfirm")}`)) {
         return;
       }
+      guard();
       const result = await importExportPayload(importedPayload, importMode);
+      guard();
       setPayload(result.payload);
       setHasSuccessfulLocalImport(isLocalDataMode);
       setMessage(
         `${t("importData")}: ${formatNumber(result.weeks_imported, language)} ${t("weeks")}, ${formatNumber(result.income_entries_imported, language)} ${t("incomeEntries")}.`,
       );
     } catch (importError) {
+      if (!isCurrent(epoch)) return;
       if (isForbidden(importError)) {
         setIsLocked(true);
         setPayload(null);
@@ -205,6 +246,7 @@ export function ExportView() {
             : t("importData"),
       );
     } finally {
+      if (!isCurrent(epoch)) return;
       setIsImporting(false);
     }
   }
@@ -260,7 +302,9 @@ export function ExportView() {
             <label className="block text-sm font-semibold text-[#172b29]" htmlFor="export-pin">
               {t("financePin")}
             </label>
-            {usesDefaultLocalPin ? <p className="mt-2 text-sm text-amber-900">{t("defaultLocalPinHint")}</p> : null}
+            {isLocalDataMode && (credential.state === "invalid" || credential.state === "unreadable") ? <p role="alert" className="mt-2 text-sm text-rose-700">{t(credential.state === "invalid" ? "pinInvalid" : "pinUnreadable")}</p> : null}
+          {isLocalDataMode ? <Link href="/settings#finance-pin" className="mt-2 inline-flex min-h-12 items-center text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">{t("pinSettings")}</Link> : null}
+          {usesDefaultLocalPin ? <p className="mt-2 text-sm text-amber-900">{t("defaultLocalPinHint")}</p> : null}
             <input
               id="export-pin"
               type="password"

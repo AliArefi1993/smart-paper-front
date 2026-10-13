@@ -9,21 +9,29 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
-export async function shareOrDownloadFile(filename: string, mimeType: string, content: BlobPart): Promise<"shared" | "downloaded"> {
+export async function shareOrDownloadFile(filename: string, mimeType: string, content: BlobPart, authorize: () => void = () => {}): Promise<"shared" | "downloaded"> {
+  authorize();
   const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
   const { Capacitor } = await import("@capacitor/core");
 
+  authorize();
   if (Capacitor.isNativePlatform()) {
     const [{ Directory, Filesystem }, { Share }] = await Promise.all([
       import("@capacitor/filesystem"),
       import("@capacitor/share"),
     ]);
+    const data = await blobToBase64(blob);
+    authorize();
     const savedFile = await Filesystem.writeFile({
       path: filename,
-      data: await blobToBase64(blob),
+      data,
       directory: Directory.Cache,
       recursive: true,
     });
+    try { authorize(); } catch (error) {
+      await Filesystem.deleteFile({ path: filename, directory: Directory.Cache }).catch(() => {});
+      throw error;
+    }
     await Share.share({
       title: filename,
       text: filename,
@@ -37,6 +45,7 @@ export async function shareOrDownloadFile(filename: string, mimeType: string, co
   const shareData = { files: [file], title: filename };
   if (navigator.canShare?.(shareData)) {
     try {
+      authorize();
       await navigator.share(shareData);
       return "shared";
     } catch (error) {
@@ -45,6 +54,7 @@ export async function shareOrDownloadFile(filename: string, mimeType: string, co
     }
   }
 
+  authorize();
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

@@ -48,3 +48,24 @@ test("downloads when a browser advertises sharing but denies the chooser", async
     URL.revokeObjectURL = originalRevokeObjectURL;
   }
 });
+
+test("revoked authorization during async preparation prevents chooser and download", async () => {
+  const originalNavigator = globalThis.navigator;
+  const originalDocument = globalThis.document;
+  let handedOff = false;
+  let checks = 0;
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
+    canShare: () => true, share: async () => { handedOff = true; },
+  } });
+  globalThis.document = { body: { appendChild: () => { handedOff = true; } } };
+  try {
+    await assert.rejects(() => shareOrDownloadFile("private.json", "application/json", "sensitive", () => {
+      if (++checks > 1) throw new Response(null, { status: 403 });
+    }), error => error.status === 403);
+    assert.equal(handedOff, false);
+    assert.equal(checks, 2);
+  } finally {
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: originalNavigator });
+    globalThis.document = originalDocument;
+  }
+});

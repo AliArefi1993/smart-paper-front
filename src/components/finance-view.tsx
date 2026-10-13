@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { flushSync } from "react-dom";
+import { subscribeFinanceCredential } from "@/lib/finance-credential";
+import { useFinanceCredential } from "@/lib/use-finance-credential";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
@@ -25,11 +28,13 @@ import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import type { FinancePayload, IncomeEntry } from "@/lib/smart-paper-types";
 
 const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
-const usesDefaultLocalPin = isLocalDataMode && !process.env.NEXT_PUBLIC_FINANCE_PIN;
+
 
 export function FinanceView() {
   const { language, isPersian, t } = useLanguage();
   const financeVisibility = useFinanceVisibility();
+  const credential = useFinanceCredential();
+  const usesDefaultLocalPin = isLocalDataMode && credential.defaultPin;
   const [data, setData] = useState<FinancePayload | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [isLocked, setIsLocked] = useState(true);
@@ -85,6 +90,11 @@ export function FinanceView() {
     setMessage("");
     setError(messageText);
   }, [session]);
+
+  useEffect(() => {
+    if (!isLocalDataMode) return;
+    return subscribeFinanceCredential(() => flushSync(() => forceLock()));
+  }, [forceLock]);
 
   useEffect(() => {
     if (!isLocalDataMode) return;
@@ -164,7 +174,7 @@ export function FinanceView() {
   }, [data]);
 
   async function unlockFinance() {
-    if (!pinInput.trim()) {
+    if (!pinInput) {
       setError(t("enterPin"));
       return;
     }
@@ -399,6 +409,8 @@ export function FinanceView() {
             {t("enterPin")}
           </p>
           {isLocalDataMode ? <p className="mt-2 text-sm text-amber-900">{t("localPinNotice")}</p> : null}
+          {isLocalDataMode && (credential.state === "invalid" || credential.state === "unreadable") ? <p role="alert" className="mt-2 text-sm text-rose-700">{t(credential.state === "invalid" ? "pinInvalid" : "pinUnreadable")}</p> : null}
+          {isLocalDataMode ? <Link href="/settings#finance-pin" className="mt-2 inline-flex min-h-12 items-center text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">{t("pinSettings")}</Link> : null}
           {usesDefaultLocalPin ? <p className="mt-2 text-sm text-amber-900">{t("defaultLocalPinHint")}</p> : null}
           <input
             aria-label={t("financePin")}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FinancePinCard } from "@/components/finance-pin-card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
@@ -28,6 +29,7 @@ const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
 
 export function SettingsView() {
   const { isPersian, t } = useLanguage();
+  const [pinBusy, setPinBusy] = useState(false);
   const financeVisibility = useFinanceVisibility();
   const [financeVisibilityNotice, setFinanceVisibilityNotice] = useState<"visible" | "hidden" | "saved" | null>(null);
   const financeVisibilityFocused = useRef(false);
@@ -86,7 +88,7 @@ export function SettingsView() {
   }, [t]);
 
   useEffect(() => {
-    if (!hasUnsavedChanges) return;
+    if (!hasUnsavedChanges && !pinBusy) return;
 
     function handleBeforeUnload(event: BeforeUnloadEvent): void {
       event.preventDefault();
@@ -95,7 +97,7 @@ export function SettingsView() {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, pinBusy]);
 
   function updateLabel(sectionId: SectionName, label: string): void {
     setMessage("");
@@ -188,6 +190,7 @@ export function SettingsView() {
   }
 
   function handleSettingsNavigation(event: MouseEvent<HTMLAnchorElement>): void {
+    if (pinBusy) { event.preventDefault(); return; }
     if (!hasUnsavedChanges) return;
     if (window.confirm(t("leaveWithUnsavedChanges"))) return;
     event.preventDefault();
@@ -261,6 +264,8 @@ export function SettingsView() {
           {financeVisibilityNotice === "visible" && financeVisibility.visible ? <Link href="/finance" onClick={handleSettingsNavigation} className="mt-3 inline-flex min-h-12 items-center rounded-xl border border-[#b6c9bf] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800">{t("openFinance")}</Link> : null}
         </section>
       ) : null}
+
+      {isLocalDataMode ? <FinancePinCard onBusyChange={setPinBusy} /> : null}
 
       <section className="mx-auto mt-6 w-full max-w-5xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("loadingSettings")}</p> : null}

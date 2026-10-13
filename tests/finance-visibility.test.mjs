@@ -46,29 +46,30 @@ function device(seed = {}) {
   };
 }
 
-test("a fresh install defaults hidden and persists the initial choice", () => {
+test("a fresh install defaults visible and persists the initial choice", () => {
   const { store, values } = device();
-  assert.deepEqual(store.initialize(), { initialized: true, visible: false, error: null });
-  assert.equal(values.get(FINANCE_VISIBILITY_KEY), "hidden");
-});
-
-test("any existing Finance key preserves visibility without parsing its contents", () => {
-  const { store, values } = device({ [FINANCE_KEY]: "damaged" });
-  assert.equal(store.initialize().visible, true);
+  assert.deepEqual(store.initialize(), { initialized: true, visible: true, error: null });
   assert.equal(values.get(FINANCE_VISIBILITY_KEY), "visible");
-
-  const empty = device({ [FINANCE_KEY]: "" });
-  assert.equal(empty.store.initialize().visible, true);
 });
 
-test("an explicit choice overrides the key-presence fallback and survives a new runtime", () => {
+test("the visible default never reads Finance records or depends on their presence", () => {
+  for (const savedRecords of [undefined, "", "damaged", "{}"]) {
+    const current = device(savedRecords === undefined ? {} : { [FINANCE_KEY]: savedRecords });
+    current.failures.add(`read:${FINANCE_KEY}`);
+    assert.equal(current.store.initialize().visible, true);
+    assert.equal(current.values.get(FINANCE_VISIBILITY_KEY), "visible");
+    assert.equal(current.values.get(FINANCE_KEY), savedRecords);
+  }
+});
+
+test("an explicit choice overrides the visible default and survives a new runtime", () => {
   const first = device({ [FINANCE_KEY]: "{}", [FINANCE_VISIBILITY_KEY]: "hidden" });
   assert.equal(first.store.initialize().visible, false);
   const restarted = createFinanceVisibilityStore(() => first.storage);
   assert.equal(restarted.initialize().visible, false);
 });
 
-test("malformed preferences use key presence and are repaired only by an explicit retry or choice", () => {
+test("malformed preferences default visible and are repaired only by an explicit retry or choice", () => {
   const current = device({ [FINANCE_KEY]: "{}", [FINANCE_VISIBILITY_KEY]: "broken" });
   assert.deepEqual(current.store.initialize(), { initialized: true, visible: true, error: "malformed" });
   assert.equal(current.values.get(FINANCE_VISIBILITY_KEY), "broken");
@@ -89,11 +90,11 @@ test("unreadable storage uses recovery-visible default and Retry persists the he
 test("failed initial and explicit writes keep the effective choice and can be retried", () => {
   const current = device();
   current.failures.add(`write:${FINANCE_VISIBILITY_KEY}`);
-  assert.deepEqual(current.store.initialize(), { initialized: true, visible: false, error: "save" });
+  assert.deepEqual(current.store.initialize(), { initialized: true, visible: true, error: "save" });
   current.failures.delete(`write:${FINANCE_VISIBILITY_KEY}`);
   assert.equal(current.store.retry(), true);
-  assert.equal(current.values.get(FINANCE_VISIBILITY_KEY), "hidden");
-  assert.equal(current.store.getSnapshot().visible, false);
+  assert.equal(current.values.get(FINANCE_VISIBILITY_KEY), "visible");
+  assert.equal(current.store.getSnapshot().visible, true);
 });
 
 test("Retry commits the attempted choice, while repeated failure retains the prior effective choice", () => {
@@ -111,7 +112,7 @@ test("Retry commits the attempted choice, while repeated failure retains the pri
 });
 
 test("a held initial choice is stable across Finance imports and subscriptions receive changes", () => {
-  const current = device();
+  const current = device({ [FINANCE_VISIBILITY_KEY]: "hidden" });
   current.store.initialize();
   let notified = 0;
   const unsubscribe = current.store.subscribe(() => notified++);
@@ -135,7 +136,7 @@ test("a read failure after a known hidden choice retains hidden recovery state",
   assert.deepEqual(current.store.getSnapshot(), { initialized: true, visible: false, error: "unavailable" });
 });
 
-test("recovered missing preference cannot re-evaluate Finance-key fallback after a known hidden choice", () => {
+test("recovered missing preference retains a known hidden choice", () => {
   const current = device({ [FINANCE_KEY]: "imported", [FINANCE_VISIBILITY_KEY]: "hidden" });
   current.store.initialize();
   current.failures.add(`read:${FINANCE_VISIBILITY_KEY}`);
@@ -231,4 +232,24 @@ test("visibility toggles and authorized merge/replace imports preserve the local
   await localStore.importLocalExportPayload(backup, "replace");
   assert.equal(values.get(FINANCE_VISIBILITY_KEY), "hidden");
   assert.equal(JSON.parse(values.get(FINANCE_KEY)).entries[0].note, "saved");
+});
+
+
+test("explicit saved visibility remains authoritative without Finance records", () => {
+  for (const value of ["hidden", "visible"]) {
+    const current = device({ [FINANCE_VISIBILITY_KEY]: value });
+    current.failures.add(`read:${FINANCE_KEY}`);
+    assert.deepEqual(current.store.initialize(), { initialized: true, visible: value === "visible", error: null });
+    assert.equal(current.values.get(FINANCE_VISIBILITY_KEY), value);
+    assert.equal(createFinanceVisibilityStore(() => current.storage).initialize().visible, value === "visible");
+  }
+});
+
+test("a malformed initial preference defaults visible without overwriting it until retry", () => {
+  const current = device({ [FINANCE_VISIBILITY_KEY]: "invalid" });
+  current.failures.add(`read:${FINANCE_KEY}`);
+  assert.deepEqual(current.store.initialize(), { initialized: true, visible: true, error: "malformed" });
+  assert.equal(current.values.get(FINANCE_VISIBILITY_KEY), "invalid");
+  assert.equal(current.store.retry(), true);
+  assert.equal(current.values.get(FINANCE_VISIBILITY_KEY), "visible");
 });

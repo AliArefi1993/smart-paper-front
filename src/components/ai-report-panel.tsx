@@ -1,5 +1,8 @@
 "use client";
 
+import { flushSync } from "react-dom";
+import { assertLocalFinanceUnlocked } from "@/lib/local-store";
+import { subscribeFinanceCredential } from "@/lib/finance-credential";
 import { useEffect, useRef, useState } from "react";
 import { formatAiReport, summarizeAiReport, type AiReportOptions } from "@/lib/ai-report";
 import { prepareAiReportTransfer, copyAiReportText } from "@/lib/ai-report-transfer";
@@ -68,10 +71,21 @@ export function AiReportPanel({
   const [message, setMessage] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
   const busyRef = useRef(false);
+  const generation = useRef(0);
   const previousPreviewRef = useRef("");
   const changedPreviewMessageRef = useRef("");
   const disclosureRef = useRef<HTMLDetailsElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const workGeneration = generation;
+    const unsubscribe = subscribeFinanceCredential(() => {
+      generation.current++;
+      previousPreviewRef.current = ""; changedPreviewMessageRef.current = ""; busyRef.current = false;
+      flushSync(() => { setReviewOpen(false); setMessage(""); setError(""); setIsBusy(false); });
+    });
+    return () => { workGeneration.current++; unsubscribe(); };
+  }, []);
 
   const includesFinance = include.financeGoal || include.incomeEntries;
   const source = includesFinance ? financeSource : plannerSource;
@@ -131,13 +145,16 @@ export function AiReportPanel({
   function openFallback(content: string, select: boolean) {
     setReviewOpen(true);
     if (select) {
+      const epoch = generation.current;
       window.setTimeout(() => {
+        if (epoch !== generation.current) return;
         disclosureRef.current?.setAttribute("open", "");
         textareaRef.current?.focus();
         textareaRef.current?.select();
       }, 0);
     } else {
-      window.setTimeout(() => textareaRef.current?.focus(), 0);
+      const epoch = generation.current;
+      window.setTimeout(() => { if (epoch === generation.current) textareaRef.current?.focus(); }, 0);
     }
   }
 
@@ -148,6 +165,11 @@ export function AiReportPanel({
 
   async function transfer(action: "copy" | "share" | "select") {
     if (busyRef.current || actionsDisabled) return;
+    const epoch = generation.current;
+    const guard = () => {
+      if (epoch !== generation.current) throw new Response(null, { status: 403 });
+      if (process.env.NEXT_PUBLIC_DATA_MODE === "local" && includesFinance) assertLocalFinanceUnlocked();
+    };
     busyRef.current = true;
     setIsBusy(true);
     clearFeedback();
@@ -160,6 +182,7 @@ export function AiReportPanel({
         reviewedContent: capturedPreview,
         readSource: getAiReportSource,
       });
+      guard();
       if (prepared.status === "empty") {
         if (includesFinance) onFinanceRefreshed(prepared.source);
         else setPlannerSource(prepared.source);
@@ -183,7 +206,9 @@ export function AiReportPanel({
         openFallback(prepared.content, true);
         setMessage(t("aiManualHint"));
       } else if (action === "copy") {
+        guard();
         const copied = await copyAiReportText(prepared.content);
+        guard();
         if (copied) setMessage(t("aiCopied"));
         else {
           openFallback(prepared.content, false);
@@ -192,11 +217,13 @@ export function AiReportPanel({
       } else {
         stage = "share";
         const outcome = await shareOrDownloadFile(
-          reportFilename(startDate, endDate), "text/markdown", prepared.content,
+          reportFilename(startDate, endDate), "text/markdown", prepared.content, guard,
         );
+        guard();
         setMessage(outcome === "downloaded" ? t("aiDownloadStarted") : t("aiChooserReturned"));
       }
     } catch (operationError) {
+      if (epoch !== generation.current) return;
       setMessage("");
       if (operationError instanceof Response && operationError.status === 403) {
         onFinanceExpired();
@@ -209,6 +236,7 @@ export function AiReportPanel({
         setError(stage === "share" ? t("aiShareError") : t("aiSourceError"));
       }
     } finally {
+      if (epoch !== generation.current) return;
       busyRef.current = false;
       setIsBusy(false);
     }

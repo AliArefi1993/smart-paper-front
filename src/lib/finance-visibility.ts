@@ -1,5 +1,4 @@
 export const FINANCE_VISIBILITY_KEY = "smart-paper.local.finance-visibility";
-const FINANCE_DATA_KEY = "smart-paper.local.finance";
 
 export type FinanceVisibilitySnapshot = {
   initialized: boolean;
@@ -47,7 +46,7 @@ export function createFinanceVisibilityStore(getStorage: () => StorageLike) {
       }
 
       const malformed = saved !== null;
-      const visible = storage.getItem(FINANCE_DATA_KEY) !== null;
+      const visible = true;
       let error: FinanceVisibilitySnapshot["error"] = malformed ? "malformed" : null;
       if (!malformed) {
         try {
