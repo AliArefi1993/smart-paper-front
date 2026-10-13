@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DiagnosticsRoot } from "@/components/diagnostics-root";
 import { Geist, Geist_Mono } from "next/font/google";
 import "@fontsource/vazirmatn/400.css";
 import "@fontsource/vazirmatn/500.css";
@@ -35,7 +36,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem("smart-paper-theme")==="dark")document.documentElement.classList.add("sp-dark")}catch{}` }} />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col"><DiagnosticsRoot>{children}</DiagnosticsRoot></body>
     </html>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { DiagnosticsSettingsCard } from "@/components/diagnostics-settings-card";
+import { ReportProblemButton } from "@/components/report-problem-button";
 import { FinancePinCard } from "@/components/finance-pin-card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
@@ -207,6 +209,7 @@ export function SettingsView() {
           <p className="mt-2 text-sm text-[#536660]">{t("plannerSectionsDescription")}</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <ReportProblemButton />
           <LanguageToggle />
           <AppearanceToggle />
           <Link
@@ -264,6 +267,8 @@ export function SettingsView() {
           {financeVisibilityNotice === "visible" && financeVisibility.visible ? <Link href="/finance" onClick={handleSettingsNavigation} className="mt-3 inline-flex min-h-12 items-center rounded-xl border border-[#b6c9bf] px-4 py-2 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800">{t("openFinance")}</Link> : null}
         </section>
       ) : null}
+
+      <DiagnosticsSettingsCard />
 
       {isLocalDataMode ? <FinancePinCard onBusyChange={setPinBusy} /> : null}
 

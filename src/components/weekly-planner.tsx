@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ReportProblemButton } from "@/components/report-problem-button";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
@@ -1097,9 +1098,9 @@ export function WeeklyPlanner() {
   }
 
   function renderRetryButton() {
-    return <button type="button" onClick={retryLocalSave} className={`min-h-12 rounded-xl px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500 ${primaryActionClass}`}>
+    return <><button type="button" onClick={retryLocalSave} className={`min-h-12 rounded-xl px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500 ${primaryActionClass}`}>
       {t("plannerRetry")}
-    </button>;
+    </button><ReportProblemButton /></>;
   }
 
   function reportShortcutBlockReason(): TranslationKey | null {
@@ -1192,6 +1193,7 @@ export function WeeklyPlanner() {
       className={`mx-auto flex min-h-screen w-full min-w-0 max-w-none flex-col gap-6 overflow-x-hidden px-4 ${automaticSaving ? "pb-[calc(1.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(7rem+env(safe-area-inset-bottom))]"} pt-6 transition-colors md:px-6 md:pb-6 xl:px-8 ${isDark ? "sp-dark" : "sp-light"} ${pageClass}`}
     >
       {!writingView ? <p className="sr-only" role={saveFailed ? "alert" : "status"} aria-atomic="true">{saveStatusText()}</p> : null}
+      {automaticSaving && error && !saveFailed ? <ReportProblemButton /> : null}
       <section
         className={`mx-auto w-full max-w-[1700px] rounded-3xl border p-5 shadow-sm backdrop-blur ${panelClass}`}
       >

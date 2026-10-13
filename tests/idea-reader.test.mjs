@@ -55,6 +55,8 @@ function harness(savedDraft, { cleanup = false, writeFailure = false } = {}) {
     if (name === "@/lib/idea-notes") return notesLib;
     if (name === "@/lib/idea-draft") return draftLib;
     if (name === "@/lib/idea-reader") return readerLib;
+    if (name === "@/lib/local-diagnostics") return { recordLocalError() {}, recordFlowOutcome() {} };
+    if (name === "@/components/report-problem-button") return { ReportProblemButton: "report-problem" };
     if (name === "@/lib/use-language") return { useLanguage: () => ({ isPersian: false, language: "en", t: key => key }) };
     if (name === "@/components/idea-reader") return { IdeaReader: "reader" };
     return { default: "link", LanguageToggle: "language", AppearanceToggle: "appearance" };

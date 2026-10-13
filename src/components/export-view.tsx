@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { ReportProblemButton } from "@/components/report-problem-button";
+import { recordLocalError, recordFlowOutcome } from "@/lib/local-diagnostics";
 import { assertLocalFinanceUnlocked } from "@/lib/local-store";
 import { flushSync } from "react-dom";
 import { subscribeFinanceCredential, financeCredentialRevision } from "@/lib/finance-credential";
@@ -165,6 +167,7 @@ export function ExportView() {
   }
 
   async function handleExport(format: ExportFormat) {
+    let transferStarted = false;
     const epoch = generation.current;
     const credentialEpoch = financeCredentialRevision();
     const guard = () => { if (isLocalDataMode) assertLocalFinanceUnlocked(); if (!isCurrent(epoch) || credentialEpoch !== financeCredentialRevision()) throw new Response(null, { status: 403 }); };
@@ -174,8 +177,11 @@ export function ExportView() {
     try {
       const file = await getExportFile(format);
       guard();
-      await shareOrDownloadFile(file.filename, file.mimeType, file.content, guard);
+      transferStarted = true;
+      const transfer = await shareOrDownloadFile(file.filename, file.mimeType, file.content, guard);
       guard();
+      recordFlowOutcome("export", "completed");
+      if (transfer === "shared") recordFlowOutcome("share", "chooser-returned");
       setMessage(`${file.filename} ${t("exportReady")}`);
     } catch (exportError) {
       if (!isCurrent(epoch)) return;
@@ -184,6 +190,13 @@ export function ExportView() {
         setPayload(null);
         setError(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
+      }
+      if (exportError instanceof Error && exportError.name === "AbortError") {
+        recordFlowOutcome("share", "cancelled");
+      } else {
+        recordLocalError({ route: "export", action: transferStarted ? "share" : "export", code: transferStarted ? "SHARE_FAILED" : "EXPORT_FAILED" });
+        recordFlowOutcome("export", "failed");
+        if (transferStarted) recordFlowOutcome("share", "failed");
       }
       setError(
         exportError instanceof Error
@@ -220,11 +233,13 @@ export function ExportView() {
           `${formatNumber(importedPayload.idea_notes?.length ?? 0, language)} ${t("ideasTitle")}`;
       }
       if (importMode === "replace" && !window.confirm(`${importDetails}\n\n${t("replaceImportConfirm")}`)) {
+        recordFlowOutcome("import", "cancelled");
         return;
       }
       guard();
       const result = await importExportPayload(importedPayload, importMode);
       guard();
+      recordFlowOutcome("import", "completed");
       setPayload(result.payload);
       setHasSuccessfulLocalImport(isLocalDataMode);
       setMessage(
@@ -238,6 +253,8 @@ export function ExportView() {
         setError(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
+      recordLocalError({ route: "export", action: "import", code: "IMPORT_FAILED" });
+      recordFlowOutcome("import", "failed");
       setError(
         importError instanceof SyntaxError
           ? t("importFileMustBeJson")
@@ -287,7 +304,7 @@ export function ExportView() {
 
       <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("preparingExport")}</p> : null}
-        {error ? <p role="alert" className="text-rose-700">{error}</p> : null}
+        {error ? <div className="text-rose-700"><p role="alert">{error}</p><ReportProblemButton /></div> : null}
         {message ? <p role="status" className="text-emerald-800">{message}{hasSuccessfulLocalImport && financeVisibility.initialized && !financeVisibility.visible ? <> {t("restoredFinanceAccess")} <Link className="inline-flex min-h-12 items-center font-semibold underline" href="/settings#finance-visibility">{t("financeVisibilitySettingsLink")}</Link></> : null}</p> : null}
 
         {isLocked ? (

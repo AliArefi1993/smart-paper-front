@@ -22,6 +22,7 @@ import {
 } from "@/lib/planner-sections";
 import { commitStorageChanges, parseStoredJson, validateLocalBackup } from "@/lib/local-import-safety";
 import { IDEA_NOTES_KEY, readIdeaNotes, restoreIdeaNotes } from "@/lib/idea-notes";
+import { recordLocalError, recordFlowOutcome, type DiagnosticRoute } from "@/lib/local-diagnostics";
 
 const WEEKDAY_NAMES = [
   "Saturday",
@@ -86,12 +87,32 @@ function getSaturdayStart(date: Date): Date {
 }
 
 function readJson<T>(key: string, fallback: T): T {
-  const raw = requireBrowserStorage().getItem(key);
-  return parseStoredJson(raw, fallback);
+  try {
+    const raw = requireBrowserStorage().getItem(key);
+    return parseStoredJson(raw, fallback);
+  } catch (error) {
+    recordLocalError({ route: storageRoute(key), action: "load", code: "LOCAL_READ_FAILED" });
+    throw error;
+  }
 }
 
 function writeJson<T>(key: string, value: T): void {
-  requireBrowserStorage().setItem(key, JSON.stringify(value));
+  try {
+    requireBrowserStorage().setItem(key, JSON.stringify(value));
+  } catch (error) {
+    recordLocalError({ route: storageRoute(key), action: "save", code: "LOCAL_SAVE_FAILED" });
+    recordFlowOutcome("save", "failed");
+    throw error;
+  }
+  // Planner autosaves on typing: count feature visits, not every keystroke.
+  if (key !== WEEKS_KEY) recordFlowOutcome("save", "completed");
+}
+
+function storageRoute(key: string): DiagnosticRoute {
+  if (key === FINANCE_KEY) return "finance";
+  if (key === PLANNER_SECTIONS_KEY) return "settings";
+  if (key === WEEKS_KEY || key === WEEK_TEMPLATES_KEY) return "planner";
+  return "unknown";
 }
 
 function createWeek(startDate: string, plannerSections = getStoredPlannerSections()): WeekDetail {

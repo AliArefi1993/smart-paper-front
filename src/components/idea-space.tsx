@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { ReportProblemButton } from "@/components/report-problem-button";
+import { recordLocalError, recordFlowOutcome } from "@/lib/local-diagnostics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
@@ -77,7 +79,10 @@ export function IdeaSpace() {
             ? c("Branch draft restored. It is not a saved thought yet.", "پیش‌نویس شاخه بازیابی شد. هنوز فکر ذخیره‌شده نیست.")
             : c("New draft restored. It is not a saved thought yet.", "پیش‌نویس تازه بازیابی شد. هنوز فکر ذخیره‌شده نیست."));
       }
-    } catch { setDraftError("load"); }
+    } catch {
+      recordLocalError({ route: "ideas", action: "load", code: "LOCAL_READ_FAILED" });
+      setDraftError("load");
+    }
   }
 
   useEffect(() => {
@@ -195,7 +200,11 @@ export function IdeaSpace() {
       setError("");
       setSaveFailed(false);
       setMessage(result.cleanupFailed ? "" : t("ideasSaved"));
+      recordFlowOutcome("save", "completed");
+      if (result.cleanupFailed) recordLocalError({ route: "ideas", action: "save", code: "LOCAL_SAVE_FAILED" });
     } catch (cause) {
+      recordLocalError({ route: "ideas", action: "save", code: "LOCAL_SAVE_FAILED" });
+      recordFlowOutcome("save", "failed");
       if (cause instanceof IdeaDraftCommitError) {
         setDraft(cause.draft);
         failedDraft = cause.recoveryFailed ? cause.draft : null;
@@ -269,11 +278,12 @@ export function IdeaSpace() {
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#536660]">{t("ideasIntro")}</p>
 
         {!localMode ? <p role="alert" className="mt-6 rounded-xl bg-amber-50 p-4 text-amber-900">{t("ideasLocalOnly")}</p> : null}
-        {error ? <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p> : null}
+        {error ? <div className="mt-5 rounded-xl bg-rose-50 p-3 text-sm text-rose-800"><p role="alert">{error}</p><ReportProblemButton /></div> : null}
         {message ? <p role="status" className="mt-5 text-sm font-semibold text-emerald-800">{message}</p> : null}
         {readerReadFailed ? <div role="alert" className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
           <p>{c("Saved thoughts could not be read. Your writing is unchanged.", "خواندن فکرهای ذخیره‌شده ممکن نشد. نوشتهٔ شما تغییر نکرده است.")}</p>
           <button type="button" onClick={() => { setReaderContextDay(null); refreshReaderNotes(); }} className={`mt-3 ${smallButton}`}>{c("Retry saved thoughts", "تلاش دوباره برای خواندن فکرها")}</button>
+          <ReportProblemButton />
         </div> : null}
 
         {draftError ? <div role="alert" className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
@@ -282,6 +292,7 @@ export function IdeaSpace() {
             : c("Draft recovery could not be saved. Your writing is here, but may be lost after closing. Retry before leaving.", "پیش‌نویس برای بازیابی ذخیره نشد. نوشته اینجاست، اما ممکن است پس از بستن از دست برود. پیش از خروج دوباره تلاش کنید.")}</p>
           {draftError === "load" ? <button type="button" onClick={loadWriting} className={`mt-3 ${smallButton}`}>{c("Retry loading", "بارگذاری دوباره")}</button>
             : draftError === "write" ? <button type="button" onClick={() => updateDraft(draft)} className={`mt-3 ${smallButton}`}>{c("Retry draft recovery", "تلاش دوباره برای بازیابی پیش‌نویس")}</button> : null}
+          <ReportProblemButton />
         </div> : null}
         {localMode && loaded ? <>
           <section className="mt-7 rounded-[1.5rem] border border-[#d9e4de] bg-[#e7f4ef] p-4 sm:p-6" aria-labelledby="ideas-write-heading">
