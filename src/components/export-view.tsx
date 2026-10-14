@@ -28,6 +28,7 @@ import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
 
 const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
+type ExportMessage = string | { kind: "financeUnlocked" };
 
 
 function isForbidden(errorValue: unknown): boolean {
@@ -50,7 +51,7 @@ export function ExportView() {
   const [pinInput, setPinInput] = useState("");
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<ExportMessage>("");
   const [hasSuccessfulLocalImport, setHasSuccessfulLocalImport] = useState(false);
 
   const generation = useRef(0);
@@ -150,7 +151,7 @@ export function ExportView() {
       await loadExportPreview();
       guard();
       setPinInput("");
-      setMessage(t("financeUnlocked"));
+      setMessage({ kind: "financeUnlocked" });
     } catch (unlockError) {
       if (!isCurrent(epoch)) return;
       setError(
@@ -305,7 +306,7 @@ export function ExportView() {
       <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("preparingExport")}</p> : null}
         {error ? <div className="text-rose-700"><p role="alert">{error}</p><ReportProblemButton /></div> : null}
-        {message ? <p role="status" className="text-emerald-800">{message}{hasSuccessfulLocalImport && financeVisibility.initialized && !financeVisibility.visible ? <> {t("restoredFinanceAccess")} <Link className="inline-flex min-h-12 items-center font-semibold underline" href="/settings#finance-visibility">{t("financeVisibilitySettingsLink")}</Link></> : null}</p> : null}
+        {message ? <p role="status" className="text-emerald-800">{typeof message === "string" ? message : t("financeUnlocked")}{hasSuccessfulLocalImport && financeVisibility.initialized && !financeVisibility.visible ? <> {t("restoredFinanceAccess")} <Link className="inline-flex min-h-12 items-center font-semibold underline" href="/settings#finance-visibility">{t("financeVisibilitySettingsLink")}</Link></> : null}</p> : null}
 
         {isLocked ? (
           <form

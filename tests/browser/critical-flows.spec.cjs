@@ -120,6 +120,29 @@ test('JSON backup chooser has a keyboard reachable named native file control in 
   await page.locator('select').filter({has:page.locator('option[value="fa"]')}).selectOption('fa');
   await expect(page.getByLabel('انتخاب فایل پشتیبان JSON',{exact:true})).toBeVisible();
 });
+test('Export unlock success follows language without relocking',async({page})=>{
+  await page.goto('/export');
+  await page.locator('#export-pin').fill('1234');
+  await page.getByRole('button',{name:'Unlock Export',exact:true}).click();
+  await expect(page.getByRole('status')).toHaveText('Finance unlocked.');
+  const language=page.locator('select').filter({has:page.locator('option[value="fa"]')});
+  await language.focus();
+  await language.selectOption('fa');
+  await expect(page.getByRole('status')).toHaveText('بخش مالی باز شد.');
+  await expect(language).toBeFocused();
+  await expect(page.locator('#export-pin')).toHaveCount(0);
+  await language.selectOption('en');
+  await expect(page.getByRole('status')).toHaveText('Finance unlocked.');
+  await expect(page.getByRole('button',{name:'Export JSON Backup',exact:true})).toBeEnabled();
+});
+test('Export unlock begun in Persian reports Persian success',async({page})=>{
+  await page.goto('/export');
+  await page.locator('select').filter({has:page.locator('option[value="fa"]')}).selectOption('fa');
+  await page.locator('#export-pin').fill('1234');
+  await page.locator('#export-pin').press('Enter');
+  await expect(page.getByRole('status')).toHaveText('بخش مالی باز شد.');
+  await expect(page.locator('#export-pin')).toHaveCount(0);
+});
 test('Short phone viewport keeps Templates actions and JSON chooser reachable',async({page})=>{
   await page.setViewportSize({width:390,height:600});
   await page.goto('/'); await page.getByRole('button',{name:'Week Templates',exact:true}).click();
