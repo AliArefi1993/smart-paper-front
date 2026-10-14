@@ -19,6 +19,7 @@ import {
   savePlannerSections,
 } from "@/lib/planner-store";
 import { useLanguage } from "@/lib/use-language";
+import { useAndroidBack } from "@/lib/use-android-back";
 import { retryFinanceVisibility, setFinanceVisible } from "@/lib/finance-visibility";
 import { useFinanceVisibility } from "@/lib/use-finance-visibility";
 import type {
@@ -190,12 +191,14 @@ export function SettingsView() {
     setNotificationSettings(nextSettings);
   }
 
-  function handleSettingsNavigation(event: MouseEvent<HTMLAnchorElement>): void {
-    if (pinBusy) { event.preventDefault(); return; }
-    if (!hasUnsavedChanges) return;
-    if (window.confirm(t("leaveWithUnsavedChanges"))) return;
-    event.preventDefault();
+  function canLeaveSettings(): boolean {
+    return !pinBusy && (!hasUnsavedChanges || window.confirm(t("leaveWithUnsavedChanges")));
   }
+
+  function handleSettingsNavigation(event: MouseEvent<HTMLAnchorElement>): void {
+    if (!canLeaveSettings()) event.preventDefault();
+  }
+  useAndroidBack(() => !canLeaveSettings());
 
   return (
     <main

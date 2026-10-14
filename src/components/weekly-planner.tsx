@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ReportProblemButton } from "@/components/report-problem-button";
 import { useRouter } from "next/navigation";
+import { useAndroidBack } from "@/lib/use-android-back";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { GrowingTextarea } from "@/components/growing-textarea";
@@ -1086,15 +1087,24 @@ export function WeeklyPlanner() {
     if (nextDay) revealPlannerDay(nextDay.date, true);
   }
 
-  function handlePlannerNavigation(event: MouseEvent<HTMLAnchorElement>): void {
+  function canLeavePlanner(): boolean {
     if (automaticSaving) {
-      if (localWeekAutosave.hasFailure()) event.preventDefault();
-      return;
+      return !localWeekAutosave.hasFailure();
     }
-    if (!hasUnsavedChanges) return;
-    if (window.confirm(t("leaveWithUnsavedChanges"))) return;
-    event.preventDefault();
+    return !hasUnsavedChanges || window.confirm(t("leaveWithUnsavedChanges"));
   }
+
+  function handlePlannerNavigation(event: MouseEvent<HTMLAnchorElement>): void {
+    if (!canLeavePlanner()) event.preventDefault();
+  }
+
+  useAndroidBack(() => {
+    if (pendingWeekStart) { if (!isSaving) cancelWeekSwitch(); return true; }
+    if (scheduleDraft) { closeScheduleDraft(); return true; }
+    if (writingView) { closeWritingView(); return true; }
+    return false;
+  }, 20);
+  useAndroidBack(() => !canLeavePlanner());
 
   function renderSaveWeekButton(className = "", compact = false) {
     if (automaticSaving) return null;

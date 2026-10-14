@@ -2,6 +2,8 @@
 
 Design: not applicable (test infrastructure). Chromium runs isolated synthetic profiles; no personal records, backend, native file chooser or Android certification. Twelve stable flows exercise React routing/autosave, unpublished Ideas, configurable sections, actual JSON file-input Merge/Replace/cancel/invalid recovery, Persian draft cold entry/reload/language switching, template-dialog keyboard focus, the named JSON file chooser, Export unlock feedback in both languages, and changed controls at a short phone viewport. `setInputFiles` exercises the input change handler and file parsing; OS chooser appearance is a separate device check.
 
+Eighteen Android Back regressions invoke the real client coordinator after simulating Capacitor Android detection. They cover EN/FA route history and reload, query traversal, direct-entry Planner fallback, root exit authorization, repeated callbacks, reader and Planner overlays, diagnostics busy/discard, Settings unsaved/PIN guards, failed Planner saves and ordinary web Back. They do not certify Android callback delivery, keyboard/chooser dismissal, lifecycle, predictive gestures or TalkBack; those require native observation.
+
 The runner has its own pinned `@playwright/test` lock so production dependency/Android artifacts do not include it. Docker image and package both use 1.58.2, matching the earlier local QA environment. The [official Docker guidance](https://playwright.dev/docs/docker) explains image/package version matching, `--init` and Chromium IPC. Image runs only trusted local application/test code.
 
 From frontend root, build and serve local production assets:
