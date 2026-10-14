@@ -421,16 +421,17 @@ export function ExportView() {
                 </label>
               </div>
 
-              <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-amber-300">
+              <label htmlFor="json-backup-file" className="mt-4 block text-sm font-semibold text-[#172b29]">
                 {isImporting ? t("loading") : t("chooseJsonBackup")}
-                <input
-                  type="file"
-                  accept="application/json,.json"
-                  className="hidden"
-                  disabled={isImporting}
-                  onChange={(event) => void handleImport(event)}
-                />
               </label>
+              <input
+                id="json-backup-file"
+                type="file"
+                accept="application/json,.json"
+                className="mt-2 block w-full rounded-xl border border-[#b6c9bf] bg-white text-sm text-[#172b29] file:me-3 file:cursor-pointer file:rounded-xl file:border-0 file:bg-amber-400 file:px-5 file:py-3 file:font-semibold file:text-slate-950 hover:file:bg-amber-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+                disabled={isImporting}
+                onChange={(event) => void handleImport(event)}
+              />
             </div>
           </>
         ) : null}

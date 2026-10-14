@@ -42,7 +42,7 @@ export function IdeaSpace() {
   const [sparksOpen, setSparksOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<"new" | "edit" | "branch" | "session" | "saved" | "deleted" | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [readerContextDay, setReaderContextDay] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -57,6 +57,17 @@ export function IdeaSpace() {
 
   const c = (en: string, fa: string) => isPersian ? fa : en;
 
+  // Feedback follows the current language without reloading unfinished writing.
+  const messages = {
+    saved: t("ideasSaved"),
+    deleted: t("ideasDeleted"),
+    session: c("Unfinished writing kept in this session. It is not a saved thought yet.", "نوشته ناتمام در این نشست حفظ شد. هنوز فکر ذخیره‌شده نیست."),
+    edit: c("Edit draft restored. Changes are not saved to the note yet.", "پیش‌نویس ویرایش بازیابی شد. تغییرات هنوز در یادداشت ذخیره نشده‌اند."),
+    branch: c("Branch draft restored. It is not a saved thought yet.", "پیش‌نویس شاخه بازیابی شد. هنوز فکر ذخیره‌شده نیست."),
+    new: c("New draft restored. It is not a saved thought yet.", "پیش‌نویس تازه بازیابی شد. هنوز فکر ذخیره‌شده نیست."),
+  };
+  const message = messageKind ? messages[messageKind] : "";
+
   function loadWriting() {
     setReaderContextDay(null);
     try {
@@ -68,16 +79,12 @@ export function IdeaSpace() {
       setLoaded(true);
       setDraftError(retainedInSession ? "write" : null);
       if (ideaDraftIssue(restored, saved) === "committed") {
-        try { window.localStorage.removeItem(IDEA_DRAFT_KEY); setDraft(newIdeaDraft()); failedDraft = null; setMessage(t("ideasSaved")); }
+        try { window.localStorage.removeItem(IDEA_DRAFT_KEY); setDraft(newIdeaDraft()); failedDraft = null; setMessageKind("saved"); }
         catch { setDraftError("cleanup"); }
       } else if (retainedInSession) {
-        setMessage(c("Unfinished writing kept in this session. It is not a saved thought yet.", "نوشته ناتمام در این نشست حفظ شد. هنوز فکر ذخیره‌شده نیست."));
+        setMessageKind("session");
       } else if (restored.body || restored.mode !== "new") {
-        setMessage(restored.mode === "edit"
-          ? c("Edit draft restored. Changes are not saved to the note yet.", "پیش‌نویس ویرایش بازیابی شد. تغییرات هنوز در یادداشت ذخیره نشده‌اند.")
-          : restored.mode === "branch"
-            ? c("Branch draft restored. It is not a saved thought yet.", "پیش‌نویس شاخه بازیابی شد. هنوز فکر ذخیره‌شده نیست.")
-            : c("New draft restored. It is not a saved thought yet.", "پیش‌نویس تازه بازیابی شد. هنوز فکر ذخیره‌شده نیست."));
+        setMessageKind(restored.mode);
       }
     } catch {
       recordLocalError({ route: "ideas", action: "load", code: "LOCAL_READ_FAILED" });
@@ -90,13 +97,12 @@ export function IdeaSpace() {
     const timeout = window.setTimeout(loadWriting, 0);
     return () => window.clearTimeout(timeout);
     // Loading runs only on mount; changing language must not replace writing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localMode]);
 
   function updateDraft(next: IdeaDraft) {
     if (!reading) setReaderContextDay(null);
     setDraft(next);
-    setMessage("");
+    setMessageKind(null);
     setSaveFailed(false);
     try { writeIdeaDraft(window.localStorage, next); failedDraft = null; setDraftError(null); }
     catch { failedDraft = next; setDraftError("write"); }
@@ -178,7 +184,7 @@ export function IdeaSpace() {
     failedDraft = null;
     setDraftError(null);
     setSaveFailed(false);
-    setMessage("");
+    setMessageKind(null);
     setSparkIndex(null);
     setSparksOpen(false);
   }
@@ -199,7 +205,7 @@ export function IdeaSpace() {
       setDraftError(result.cleanupFailed ? "cleanup" : null);
       setError("");
       setSaveFailed(false);
-      setMessage(result.cleanupFailed ? "" : t("ideasSaved"));
+      setMessageKind(result.cleanupFailed ? null : "saved");
       recordFlowOutcome("save", "completed");
       if (result.cleanupFailed) recordLocalError({ route: "ideas", action: "save", code: "LOCAL_SAVE_FAILED" });
     } catch (cause) {
@@ -212,7 +218,7 @@ export function IdeaSpace() {
       }
       setSaveFailed(true);
       setError(t("ideasSaveError"));
-      setMessage("");
+      setMessageKind(null);
     }
   }
 
@@ -256,10 +262,10 @@ export function IdeaSpace() {
       setReaderContextDay(null);
       setNotes(next);
       setError("");
-      setMessage(t("ideasDeleted"));
+      setMessageKind("deleted");
       // Keep the active draft; a missing origin/target requires an explicit
       // independent-save decision instead of silently discarding writing.
-    } catch { setError(t("ideasSaveError")); setMessage(""); }
+    } catch { setError(t("ideasSaveError")); setMessageKind(null); }
   }
 
   const cardClass = "rounded-[1.25rem] border border-[#d9e4de] bg-white p-5";

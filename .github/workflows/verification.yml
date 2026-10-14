@@ -80,6 +80,8 @@ jobs:
         run: npm test
       - name: Local-data production build
         run: npm run build
+      - name: Critical browser integration
+        run: npm run test:browser
       - name: Sync Android assets
         run: npx --no-install cap sync android
       - name: Install Android SDK 36 tools

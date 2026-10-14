@@ -279,6 +279,9 @@ export function WeeklyPlanner() {
   const notificationCopyRef = useRef({ title: t("todayPlan"), fallbackBody: t("notificationDescription") });
   const sectionButtonsRef = useRef<Record<string, HTMLButtonElement | null>>({});
   const writingTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const templateTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const templateDialogRef = useRef<HTMLDialogElement | null>(null);
+  const templateNameRef = useRef<HTMLInputElement | null>(null);
   const writingDoneRef = useRef<HTMLButtonElement | null>(null);
   const writingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const editRevisionRef = useRef(0);
@@ -489,6 +492,19 @@ export function WeeklyPlanner() {
       target?.focus({ preventScroll: true });
     });
   }
+
+  function closeTemplateSheet(): void {
+    setIsTemplateSheetOpen(false);
+    requestAnimationFrame(() => templateTriggerRef.current?.focus({ preventScroll: true }));
+  }
+
+  useEffect(() => {
+    if (!isTemplateSheetOpen) return;
+    const dialog = templateDialogRef.current;
+    dialog?.showModal();
+    templateNameRef.current?.focus();
+    return () => { if (dialog?.open) dialog.close(); };
+  }, [isTemplateSheetOpen]);
 
   function handleWritingKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key === "Escape") {
@@ -798,7 +814,7 @@ export function WeeklyPlanner() {
           }
         : previous,
     );
-    setIsTemplateSheetOpen(false);
+    closeTemplateSheet();
   }
 
   async function saveCurrentWeekAsTemplate(): Promise<void> {
@@ -1356,7 +1372,7 @@ export function WeeklyPlanner() {
             ) : null}
             <button
               type="button"
-              onClick={() => setIsTemplateSheetOpen(true)}
+              onClick={(event) => { templateTriggerRef.current = event.currentTarget; setIsTemplateSheetOpen(true); }}
               className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                 isDark
                   ? "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
@@ -1872,18 +1888,19 @@ export function WeeklyPlanner() {
         </div>
       ) : null}
       {isTemplateSheetOpen ? (
-        <div
-          className={`fixed inset-0 z-40 flex items-end ${sheetBackdropClass} px-4 py-4 sm:items-center sm:justify-center`}
-          role="dialog"
+        <dialog
+          ref={templateDialogRef}
+          className={`fixed inset-0 z-40 m-0 h-[100dvh] max-h-none w-full max-w-none border-0 open:flex items-end ${sheetBackdropClass} px-4 py-4 sm:items-center sm:justify-center`}
           aria-modal="true"
           aria-label={t("templates")}
+          onCancel={(event) => { event.preventDefault(); closeTemplateSheet(); }}
         >
           <div className={`max-h-[75vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-4 shadow-2xl ${panelClass}`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">{t("templates")}</h2>
               <button
                 type="button"
-                onClick={() => setIsTemplateSheetOpen(false)}
+                onClick={closeTemplateSheet}
                 className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
                   isDark
                     ? "border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]"
@@ -1894,13 +1911,18 @@ export function WeeklyPlanner() {
               </button>
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <input
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                maxLength={80}
-                placeholder={t("templateName")}
-                className={inputClass}
-              />
+              <div className="flex-1">
+                <label htmlFor="template-name" className="mb-1 block text-sm font-semibold">{t("templateName")}</label>
+                <input
+                  id="template-name"
+                  ref={templateNameRef}
+                  value={templateName}
+                  onChange={(event) => setTemplateName(event.target.value)}
+                  maxLength={80}
+                  placeholder={t("templateName")}
+                  className={inputClass}
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => void saveCurrentWeekAsTemplate()}
@@ -1945,7 +1967,7 @@ export function WeeklyPlanner() {
               </div>
             ) : null}
           </div>
-        </div>
+        </dialog>
       ) : null}
       {scheduleDraft ? (
         <div className={`fixed inset-0 z-40 flex items-end ${sheetBackdropClass} px-4 py-4 sm:items-center sm:justify-center`}>

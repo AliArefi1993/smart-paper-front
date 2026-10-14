@@ -1,0 +1,6 @@
+{
+  "name": "smart-paper-browser-tests",
+  "private": true,
+  "scripts": { "test": "playwright test", "performance": "node performance.cjs" },
+  "devDependencies": { "@playwright/test": "1.58.2" }
+}
