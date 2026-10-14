@@ -1,6 +1,6 @@
 # Critical browser integration tests
 
-Design: not applicable (test infrastructure). Chromium runs isolated synthetic profiles; no personal records, backend, native file chooser or Android certification. Nine stable flows exercise React routing/autosave, unpublished Ideas, configurable sections, actual JSON file-input Merge/Replace/cancel/invalid recovery, Persian draft cold entry/reload/language switching, template-dialog keyboard focus, and the named JSON file chooser. `setInputFiles` exercises the input change handler and file parsing; OS chooser appearance is a separate device check.
+Design: not applicable (test infrastructure). Chromium runs isolated synthetic profiles; no personal records, backend, native file chooser or Android certification. Ten stable flows exercise React routing/autosave, unpublished Ideas, configurable sections, actual JSON file-input Merge/Replace/cancel/invalid recovery, Persian draft cold entry/reload/language switching, template-dialog keyboard focus, the named JSON file chooser, and changed controls at a short phone viewport. `setInputFiles` exercises the input change handler and file parsing; OS chooser appearance is a separate device check.
 
 The runner has its own pinned `@playwright/test` lock so production dependency/Android artifacts do not include it. Docker image and package both use 1.58.2, matching the earlier local QA environment. The [official Docker guidance](https://playwright.dev/docs/docker) explains image/package version matching, `--init` and Chromium IPC. Image runs only trusted local application/test code.
 
@@ -12,6 +12,8 @@ docker run --rm --name smart-paper-desktop-preview -p 127.0.0.1:3192:3192 -v "$P
 ```
 
 Run `bash scripts/test-browser-docker.sh` (`npm run test:browser` alias) after building. It starts and stops its own internal production preview in the browser container; no published port or separate server is needed. Verification CI runs this focused step after its existing build; performance is manual. Override `BROWSER_BASE_URL` for a shared production preview. No automatic full build repetition is added. Failed tests retain traces under ignored `tests/browser/test-results/` through the mounted suite directory. Runner leaves no service running; stop any separately started shared preview after consumers finish.
+
+When the pinned Docker image is unavailable, an installed desktop Chrome can run the same suite against a shared preview: from `tests/browser/`, set `BROWSER_CHROME_CHANNEL=chrome BROWSER_BASE_URL=http://127.0.0.1:3192` for `npm test` or `npm run performance`. This uses the installed Chrome version, so record it with the evidence.
 
 Performance, against the same preview:
 

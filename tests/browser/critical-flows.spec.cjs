@@ -18,10 +18,10 @@ test('Planner autosave and unpublished Idea survive immediate cross-route naviga
 test('Section hide/re-enable retains persisted and rendered work',async({page,context})=>{
   const backup=fixture(); await seed(context,storage(backup)); await page.goto('/');
   await page.goto('/settings'); const checkbox=page.locator('[data-section-active] input').first();
-  await checkbox.uncheck(); await page.getByRole('button',{name:'Save Settings',exact:true}).click();
+  await checkbox.uncheck(); await page.getByRole('button',{name:'Save Settings',exact:true}).first().click();
   await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('smart-paper.local.planner-sections'))[0].active)).toBe(false);
   await page.goto('/'); await expect(page.getByRole('region',{name:'Main',exact:true})).toHaveCount(0);
-  await page.goto('/settings'); await checkbox.check(); await page.getByRole('button',{name:'Save Settings',exact:true}).click();
+  await page.goto('/settings'); await checkbox.check(); await page.getByRole('button',{name:'Save Settings',exact:true}).first().click();
   await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('smart-paper.local.planner-sections'))[0].active)).toBe(true);
   await page.goto('/');
   // Stored Saturday work is the canonical fixture; expand the day/section through UI.
@@ -43,7 +43,7 @@ test('JSON file-input Merge, canceled Replace, invalid input and confirmed Repla
   await page.getByRole('radio',{name:'Delete old data first',exact:true}).check();
   page.once('dialog',dialog=>dialog.dismiss()); await upload(incoming);
   await expect(input).toBeEnabled(); await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('smart-paper.local.idea-notes')).length)).toBe(21);
-  await upload({schema_version:999}); await expect(page.getByRole('alert')).toBeVisible();
+  await upload({schema_version:999}); await expect(page.getByRole('alert').filter({hasText:'Import file must be a Smart Paper JSON backup.'})).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('smart-paper.local.idea-notes')).length)).toBe(21);
   page.once('dialog',dialog=>dialog.accept()); await upload(incoming);
   await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('smart-paper.local.idea-notes')).length)).toBe(1);
@@ -119,4 +119,18 @@ test('JSON backup chooser has a keyboard reachable named native file control in 
   await expect(input).toBeFocused();
   await page.locator('select').filter({has:page.locator('option[value="fa"]')}).selectOption('fa');
   await expect(page.getByLabel('انتخاب فایل پشتیبان JSON',{exact:true})).toBeVisible();
+});
+test('Short phone viewport keeps Templates actions and JSON chooser reachable',async({page})=>{
+  await page.setViewportSize({width:390,height:600});
+  await page.goto('/'); await page.getByRole('button',{name:'Week Templates',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Week Templates'});
+  await expect(dialog.getByRole('textbox',{name:'Template name'})).toBeFocused();
+  await expect(dialog.getByRole('button',{name:'Cancel',exact:true})).toBeVisible();
+  expect(await dialog.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;})).toBe(true);
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await page.goto('/export'); await page.locator('#export-pin').fill('1234');
+  await page.getByRole('button',{name:'Unlock Export',exact:true}).click();
+  const chooser=page.getByLabel('Choose JSON Backup',{exact:true});
+  await expect(chooser).toBeVisible();
+  expect(await chooser.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;})).toBe(true);
 });
