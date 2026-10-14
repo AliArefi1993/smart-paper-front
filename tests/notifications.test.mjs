@@ -50,13 +50,14 @@ function event(title, start_time = "09:00") {
   return { title, start_time };
 }
 
-function setup(t, { native = true, enabled = true, time = "08:00", permission = "granted", now = baseTime } = {}) {
+function setup(t, { native = true, enabled = true, time = "08:00", permission = "granted", now = baseTime, localMode = false } = {}) {
   const originalDate = globalThis.Date;
   const originalWindow = globalThis.window;
   const originalNative = globalThis.__notificationNative;
   const originalMock = globalThis.__notificationMock;
   const originalLoader = globalThis.__notificationWeekLoader;
   const originalMode = process.env.NEXT_PUBLIC_DATA_MODE;
+  process.env.NEXT_PUBLIC_DATA_MODE = localMode ? "local" : "api";
   class FixedDate extends originalDate {
     constructor(...args) { super(...(args.length ? args : [now])); }
     static now() { return now; }
@@ -134,8 +135,7 @@ test("populated target keeps title, selected time, and first four events", async
 });
 
 test("empty today still schedules populated Saturday target", async (t) => {
-  const { calls } = setup(t, { time: "06:00" });
-  process.env.NEXT_PUBLIC_DATA_MODE = "local";
+  const { calls } = setup(t, { time: "06:00", localMode: true });
   globalThis.__weekToLoad = makeWeek({ "2026-10-17": [event("Saturday")] }, "2026-10-17");
   const viewedWeek = makeWeek();
   assert.equal(await syncMorningPlanNotification(viewedWeek, copy), "scheduled");
@@ -145,8 +145,7 @@ test("empty today still schedules populated Saturday target", async (t) => {
 });
 
 test("today's populated schedule does not schedule when tomorrow is empty", async (t) => {
-  const { calls } = setup(t, { time: "06:00" });
-  process.env.NEXT_PUBLIC_DATA_MODE = "local";
+  const { calls } = setup(t, { time: "06:00", localMode: true });
   globalThis.__weekToLoad = makeWeek({}, "2026-10-17");
   const viewedWeek = makeWeek({ "2026-10-16": [event("Friday")] });
   assert.equal(await syncMorningPlanNotification(viewedWeek, copy), "empty");
