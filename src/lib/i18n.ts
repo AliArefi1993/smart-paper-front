@@ -263,7 +263,7 @@ export const translations = {
     noScheduleEntries: "No timed events.",
     notificationDenied: "Notification permission is denied.",
     notificationDescription:
-      "Send a local Android reminder with the day's timed events.",
+      "Get a local Android reminder for the day's timed events. No reminder is sent when that day has no timed events.",
     notificationSaved: "Notification settings saved.",
     notificationTime: "Notification time",
     nextWeek: "Next week",
@@ -617,7 +617,7 @@ export const translations = {
     noScheduleEntries: "رویداد زمان‌دار ندارید.",
     notificationDenied: "اجازه اعلان رد شده است.",
     notificationDescription:
-      "یک یادآوری محلی اندروید با رویدادهای زمان‌دار روز ارسال شود.",
+      "یک یادآوری محلی اندروید با رویدادهای زمان‌دار آن روز دریافت کنید. اگر آن روز رویداد زمان‌داری نداشته باشد، اعلانی فرستاده نمی‌شود.",
     notificationSaved: "تنظیمات اعلان ذخیره شد.",
     notificationTime: "زمان اعلان",
     nextWeek: "هفته بعد",

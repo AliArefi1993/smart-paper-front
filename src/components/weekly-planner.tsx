@@ -276,7 +276,7 @@ export function WeeklyPlanner() {
   const weekRailRef = useRef<HTMLDivElement>(null);
   const dayButtonsRef = useRef<Record<string, HTMLButtonElement | null>>({});
   const minimizeDaysRef = useRef<HTMLButtonElement | null>(null);
-  const notificationCopyRef = useRef({ title: t("todayPlan"), fallbackBody: t("notificationDescription") });
+  const notificationCopyRef = useRef({ title: t("todayPlan") });
   const sectionButtonsRef = useRef<Record<string, HTMLButtonElement | null>>({});
   const writingTriggerRef = useRef<HTMLButtonElement | null>(null);
   const templateTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -426,7 +426,6 @@ export function WeeklyPlanner() {
       }
       void syncMorningPlanNotification(payload, {
         title: t("todayPlan"),
-        fallbackBody: t("notificationDescription"),
       }, false).catch(() => {});
       setHasUnsavedChanges(!noNewEdits);
       setMessage(noNewEdits ? t("savedSuccessfully") : "");
@@ -526,7 +525,7 @@ export function WeeklyPlanner() {
   }, [writingView]);
 
   useEffect(() => {
-    notificationCopyRef.current = { title: t("todayPlan"), fallbackBody: t("notificationDescription") };
+    notificationCopyRef.current = { title: t("todayPlan") };
   }, [t]);
 
   useEffect(() => {

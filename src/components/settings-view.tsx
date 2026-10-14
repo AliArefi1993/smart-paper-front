@@ -165,7 +165,6 @@ export function SettingsView() {
         saveMorningNotificationSettings(notificationSettings);
       const notificationResult = await syncMorningPlanNotification(null, {
         title: t("todayPlan"),
-        fallbackBody: t("notificationDescription"),
       });
       setSections(savedSections);
       setNotificationSettings(savedNotificationSettings);

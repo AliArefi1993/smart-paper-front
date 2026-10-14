@@ -4,7 +4,7 @@ import type { MorningNotificationSettings, WeekDetail } from "@/lib/smart-paper-
 const MORNING_NOTIFICATION_KEY = "smart-paper.local.morning-notification";
 const MORNING_NOTIFICATION_ID = 8001;
 
-export type NotificationSyncResult = "scheduled" | "disabled" | "web" | "denied";
+export type NotificationSyncResult = "scheduled" | "empty" | "disabled" | "web" | "denied";
 
 export function getMorningNotificationSettings(): MorningNotificationSettings {
   if (typeof window === "undefined") {
@@ -56,11 +56,11 @@ function localIsoDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function notificationBody(week: WeekDetail | null, targetDate: Date, fallback: string): string {
+function notificationBody(week: WeekDetail | null, targetDate: Date): string | null {
   const isoDate = localIsoDate(targetDate);
   const day = week?.days.find((item) => item.date === isoDate);
   const entries = day?.schedule_entries ?? [];
-  if (entries.length === 0) return fallback;
+  if (entries.length === 0) return null;
   return entries
     .slice(0, 4)
     .map((entry) => `${entry.start_time} ${entry.title}`)
@@ -71,7 +71,7 @@ let notificationSyncChain: Promise<NotificationSyncResult | void> = Promise.reso
 
 export function syncMorningPlanNotification(
   week: WeekDetail | null,
-  copy: { title: string; fallbackBody: string },
+  copy: { title: string },
   requestPermission = true,
 ): Promise<NotificationSyncResult> {
   const result = notificationSyncChain.then(() => performNotificationSync(week, copy, requestPermission));
@@ -81,7 +81,7 @@ export function syncMorningPlanNotification(
 
 async function performNotificationSync(
   week: WeekDetail | null,
-  copy: { title: string; fallbackBody: string },
+  copy: { title: string },
   requestPermission: boolean,
 ): Promise<NotificationSyncResult> {
   const settings = getMorningNotificationSettings();
@@ -111,12 +111,14 @@ async function performNotificationSync(
     week = await getLocalWeek(localIsoDate(start));
   }
   if (!getMorningNotificationSettings().enabled) return "disabled";
+  const body = notificationBody(week, at);
+  if (body === null) return "empty";
   await LocalNotifications.schedule({
     notifications: [
       {
         id: MORNING_NOTIFICATION_ID,
         title: copy.title,
-        body: notificationBody(week, at, copy.fallbackBody),
+        body,
         schedule: { at },
       },
     ],
@@ -125,11 +127,11 @@ async function performNotificationSync(
 }
 
 let plannerNotificationTimer: ReturnType<typeof setTimeout> | undefined;
-let plannerNotificationPending: { week: WeekDetail; copy: { title: string; fallbackBody: string } } | null = null;
+let plannerNotificationPending: { week: WeekDetail; copy: { title: string } } | null = null;
 let plannerNotificationRunning = false;
 
 /** Coalesce Planner writes independently from persistence, without permission prompts. */
-export function queuePlannerNotification(week: WeekDetail, copy: { title: string; fallbackBody: string }): void {
+export function queuePlannerNotification(week: WeekDetail, copy: { title: string }): void {
   plannerNotificationPending = { week, copy };
   clearTimeout(plannerNotificationTimer);
   plannerNotificationTimer = setTimeout(() => void drainPlannerNotification(), 1200);
