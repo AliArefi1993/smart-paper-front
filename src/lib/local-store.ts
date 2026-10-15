@@ -192,7 +192,11 @@ function getWeekStartDates(span: number): string[] {
 
 export async function getLocalWeeks(span = 8): Promise<WeekListPayload> {
   const currentWeekStart = formatIsoDate(getSaturdayStart(new Date()));
-  const weeks = getWeekStartDates(span).map((startDate) => {
+  const startDates = [...new Set([
+    ...getWeekStartDates(span),
+    ...Object.keys(getStoredWeeks()),
+  ])].sort();
+  const weeks = startDates.map((startDate) => {
     const endDate = formatIsoDate(addDays(parseIsoDate(startDate), 6));
     return {
       start_date: startDate,

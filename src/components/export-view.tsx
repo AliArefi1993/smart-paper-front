@@ -13,7 +13,7 @@ import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { AiReportPanel } from "@/components/ai-report-panel";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppearanceToggle } from "@/components/appearance-toggle";
-import { formatMoney, formatNumber } from "@/lib/formatters";
+import { formatCompactShamsiWeekRange, formatMoney, formatNumber } from "@/lib/formatters";
 import {
   getExportFile,
   getExportPayload,
@@ -29,6 +29,12 @@ import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
 
 const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
 type ExportMessage = string | { kind: "financeUnlocked" };
+type ImportAttempt = { filename: string; mode: ImportMode };
+type ImportFeedback = ImportAttempt & (
+  | { status: "importing" | "cancelled" }
+  | { status: "error"; detail: string; invalidJson: boolean }
+  | { status: "success"; weeks: number; incomeEntries: number; ideas: number; templates: number; range: [string, string] | null }
+);
 
 
 function isForbidden(errorValue: unknown): boolean {
@@ -52,7 +58,21 @@ export function ExportView() {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState<ExportMessage>("");
-  const [hasSuccessfulLocalImport, setHasSuccessfulLocalImport] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<ImportFeedback | null>(null);
+  const importFeedbackRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!importFeedback || importFeedback.status === "importing") return;
+    importFeedbackRef.current?.focus({ preventScroll: true });
+    importFeedbackRef.current?.scrollIntoView({ block: "nearest" });
+  }, [importFeedback]);
+
+  useEffect(() => {
+    if (!isLocked || !error) return;
+    errorRef.current?.focus({ preventScroll: true });
+    errorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isLocked, error]);
 
   const generation = useRef(0);
   function isCurrent(epoch: number) { return epoch === generation.current; }
@@ -60,7 +80,7 @@ export function ExportView() {
     if (!isLocalDataMode) return;
     return subscribeFinanceCredential(() => {
       generation.current++;
-      flushSync(() => { setPayload(null); setIsLocked(true); setPinInput(""); setMessage(""); setError(""); setIsUnlocking(false); setActiveFormat(null); setIsImporting(false); setIsLoading(false); });
+      flushSync(() => { setPayload(null); setIsLocked(true); setPinInput(""); setMessage(""); setError(""); setImportFeedback(null); setIsUnlocking(false); setActiveFormat(null); setIsImporting(false); setIsLoading(false); });
     });
   }, []);
   useEffect(() => () => { generation.current++; }, []);
@@ -114,6 +134,7 @@ export function ExportView() {
         if (active && response.status === 403) {
           setPayload(null);
           setIsLocked(true);
+          setImportFeedback(null);
         }
       } catch {
         // A temporary network failure should not erase the current preview.
@@ -189,6 +210,7 @@ export function ExportView() {
       if (isForbidden(exportError)) {
         setIsLocked(true);
         setPayload(null);
+        setImportFeedback(null);
         setError(`${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
@@ -218,10 +240,11 @@ export function ExportView() {
     event.target.value = "";
     if (!file) return;
 
+    const attempt: ImportAttempt = { filename: file.name, mode: importMode };
     setIsImporting(true);
     setError("");
     setMessage("");
-    setHasSuccessfulLocalImport(false);
+    setImportFeedback({ ...attempt, status: "importing" });
     try {
       const raw = await file.text();
       guard();
@@ -232,37 +255,49 @@ export function ExportView() {
         importDetails += `\n${formatNumber(importedPayload.weeks.length, language)} ${t("weeks")}, ` +
           `${formatNumber(importedPayload.finance.entries.length, language)} ${t("incomeEntries")}, ` +
           `${formatNumber(importedPayload.idea_notes?.length ?? 0, language)} ${t("ideasTitle")}`;
+        if (isLocalDataMode) importDetails += `, ${formatNumber(importedPayload.week_templates?.length ?? 0, language)} ${t("templates")}`;
       }
-      if (importMode === "replace" && !window.confirm(`${importDetails}\n\n${t("replaceImportConfirm")}`)) {
+      if (attempt.mode === "replace" && !window.confirm(`${importDetails}\n\n${t("replaceImportConfirm")}`)) {
         recordFlowOutcome("import", "cancelled");
+        setImportFeedback({ ...attempt, status: "cancelled" });
         return;
       }
       guard();
-      const result = await importExportPayload(importedPayload, importMode);
+      const result = await importExportPayload(importedPayload, attempt.mode);
       guard();
       recordFlowOutcome("import", "completed");
       setPayload(result.payload);
-      setHasSuccessfulLocalImport(isLocalDataMode);
-      setMessage(
-        `${t("importData")}: ${formatNumber(result.weeks_imported, language)} ${t("weeks")}, ${formatNumber(result.income_entries_imported, language)} ${t("incomeEntries")}.`,
-      );
+      let range: [string, string] | null = null;
+      if (isLocalDataMode) {
+        const starts = importedPayload.weeks.map((week) => week.start_date).sort();
+        if (starts.length) {
+          const end = new Date(`${starts[starts.length - 1]}T12:00:00Z`);
+          end.setUTCDate(end.getUTCDate() + 6);
+          range = [starts[0], end.toISOString().slice(0, 10)];
+        }
+      }
+      setImportFeedback({
+        ...attempt, status: "success", range,
+        weeks: result.weeks_imported, incomeEntries: result.income_entries_imported,
+        ideas: isLocalDataMode ? importedPayload.idea_notes?.length ?? 0 : 0,
+        templates: isLocalDataMode ? importedPayload.week_templates?.length ?? 0 : 0,
+      });
     } catch (importError) {
       if (!isCurrent(epoch)) return;
       if (isForbidden(importError)) {
         setIsLocked(true);
         setPayload(null);
-        setError(`${t("financeIsLocked")}. ${t("enterPin")}.`);
+        setImportFeedback(null);
+        setError(`${t("importIncomplete")}. ${t("financeIsLocked")}. ${t("enterPin")}.`);
         return;
       }
       recordLocalError({ route: "export", action: "import", code: "IMPORT_FAILED" });
       recordFlowOutcome("import", "failed");
-      setError(
-        importError instanceof SyntaxError
-          ? t("importFileMustBeJson")
-          : importError instanceof Error
+      setImportFeedback({ ...attempt, status: "error", invalidJson: importError instanceof SyntaxError, detail:
+        importError instanceof Error && !(importError instanceof SyntaxError)
             ? importError.message
-            : t("importData"),
-      );
+            : "",
+      });
     } finally {
       if (!isCurrent(epoch)) return;
       setIsImporting(false);
@@ -301,12 +336,13 @@ export function ExportView() {
       {isLocalDataMode ? <AiReportPanel key={JSON.stringify(searchParams.getAll("reportWeek"))} initialContext={reportContext} financeSource={payload} onFinanceRefreshed={setPayload} onFinanceExpired={() => {
         setPayload(null);
         setIsLocked(true);
+        setImportFeedback(null);
       }} /> : null}
 
       <section className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#d9e4de] bg-white p-5">
         {isLoading ? <p className="text-[#536660]">{t("preparingExport")}</p> : null}
-        {error ? <div className="text-rose-700"><p role="alert">{error}</p><ReportProblemButton /></div> : null}
-        {message ? <p role="status" className="text-emerald-800">{typeof message === "string" ? message : t("financeUnlocked")}{hasSuccessfulLocalImport && financeVisibility.initialized && !financeVisibility.visible ? <> {t("restoredFinanceAccess")} <Link className="inline-flex min-h-12 items-center font-semibold underline" href="/settings#finance-visibility">{t("financeVisibilitySettingsLink")}</Link></> : null}</p> : null}
+        {error ? <div ref={errorRef} tabIndex={-1} className="text-rose-700"><p role="alert">{error}</p><ReportProblemButton /></div> : null}
+        {message ? <p role="status" className="text-emerald-800">{typeof message === "string" ? message : t("financeUnlocked")}</p> : null}
 
         {isLocked ? (
           <form
@@ -362,7 +398,7 @@ export function ExportView() {
               <button
                 type="button"
                 onClick={() => void handleExport("xlsx")}
-                disabled={activeFormat !== null}
+                disabled={activeFormat !== null || isImporting}
                 className="rounded-xl border border-[#b6c9bf] bg-white px-5 py-3 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "xlsx" ? t("loading") : t("exportExcel")}
@@ -370,7 +406,7 @@ export function ExportView() {
               {!isLocalDataMode ? <button
                 type="button"
                 onClick={() => void handleExport("markdown")}
-                disabled={activeFormat !== null}
+                disabled={activeFormat !== null || isImporting}
                 className="rounded-xl border border-[#b6c9bf] bg-white px-5 py-3 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "markdown" ? t("loading") : t("exportForAi")}
@@ -378,7 +414,7 @@ export function ExportView() {
               <button
                 type="button"
                 onClick={() => void handleExport("json")}
-                disabled={activeFormat !== null}
+                disabled={activeFormat !== null || isImporting}
                 className="rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "json" ? t("loading") : t("exportJsonBackup")}
@@ -386,7 +422,7 @@ export function ExportView() {
               <button
                 type="button"
                 onClick={() => void handleExport("csv")}
-                disabled={activeFormat !== null}
+                disabled={activeFormat !== null || isImporting}
                 className="rounded-xl border border-slate-500 px-5 py-3 text-sm font-semibold text-[#172b29] hover:border-teal-700 hover:text-teal-800 disabled:opacity-60"
               >
                 {activeFormat === "csv" ? t("loading") : t("exportCsv")}
@@ -406,6 +442,7 @@ export function ExportView() {
                     name="import-mode"
                     value="merge"
                     checked={importMode === "merge"}
+                    disabled={isImporting}
                     onChange={() => setImportMode("merge")}
                   />
                   {t("mergeUpsert")}
@@ -416,6 +453,7 @@ export function ExportView() {
                     name="import-mode"
                     value="replace"
                     checked={importMode === "replace"}
+                    disabled={isImporting}
                     onChange={() => setImportMode("replace")}
                   />
                   {t("deleteOldDataFirst")}
@@ -423,16 +461,50 @@ export function ExportView() {
               </div>
 
               <label htmlFor="json-backup-file" className="mt-4 block text-sm font-semibold text-[#172b29]">
-                {isImporting ? t("loading") : t("chooseJsonBackup")}
+                {isImporting ? t("importingBackup") : t("chooseJsonBackup")}
               </label>
               <input
                 id="json-backup-file"
                 type="file"
                 accept="application/json,.json"
                 className="mt-2 block w-full rounded-xl border border-[#b6c9bf] bg-white text-sm text-[#172b29] file:me-3 file:cursor-pointer file:rounded-xl file:border-0 file:bg-amber-400 file:px-5 file:py-3 file:font-semibold file:text-slate-950 hover:file:bg-amber-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
-                disabled={isImporting}
+                disabled={isImporting || activeFormat !== null}
                 onChange={(event) => void handleImport(event)}
               />
+              {importFeedback ? (
+                <div ref={importFeedbackRef} tabIndex={-1} role="region" aria-labelledby="import-feedback-title" className="mt-4 rounded-xl border border-[#d9e4de] bg-[#f1f5f2] p-4 [overflow-wrap:anywhere]">
+                  <div role={importFeedback.status === "error" ? "alert" : "status"}>
+                    <h3 id="import-feedback-title" className={`text-lg font-bold ${importFeedback.status === "error" ? "text-rose-700" : importFeedback.status === "success" ? "text-emerald-800" : "text-[#172b29]"}`}>
+                      {t(importFeedback.status === "success" ? "importComplete" : importFeedback.status === "error" ? "importIncomplete" : importFeedback.status === "cancelled" ? "importCancelled" : "importingBackup")}
+                    </h3>
+                    <p className="mt-2 text-sm"><span className="font-semibold">{t("importFile")}: </span><bdi>{importFeedback.filename}</bdi></p>
+                    <p className="mt-2 text-sm"><span className="font-semibold">{t("importModeLabel")}: </span>{t(importFeedback.mode === "merge" ? "mergeUpsert" : "deleteOldDataFirst")}</p>
+                    {importFeedback.status === "importing" ? <p className="mt-2 text-sm">{t("importKeepOpen")}</p> : null}
+                    {importFeedback.status === "cancelled" ? <p className="mt-2 text-sm">{t("importNoChanges")}</p> : null}
+                    {importFeedback.status === "error" ? <><p className="mt-2 text-sm text-rose-700">{importFeedback.invalidJson ? t("importFileMustBeJson") : importFeedback.detail}</p><p className="mt-2 text-sm">{t("importRetry")}</p></> : null}
+                    {importFeedback.status === "success" ? <>
+                      {isLocalDataMode ? <p className="mt-2 font-semibold">{t("importSavedOnDevice")}</p> : null}
+                      <h4 className="mt-4 font-semibold">{t("importBackupRecords")}</h4>
+                      <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {([
+                          ["weeks", importFeedback.weeks], ["incomeEntries", importFeedback.incomeEntries],
+                          ...(isLocalDataMode ? [["ideasTitle", importFeedback.ideas], ["templates", importFeedback.templates]] as const : []),
+                        ] as const).map(([label, count]) => <div key={label} className="flex justify-between gap-4 text-sm"><dt>{t(label)}</dt><dd className="font-bold">{formatNumber(count, language)}</dd></div>)}
+                      </dl>
+                      <p className="mt-3 text-sm text-[#536660]">{t("importCountsHint")}</p>
+                      {importFeedback.range ? <><p className="mt-3 text-sm"><span className="font-semibold">{t("importWeekRange")}: </span>{formatCompactShamsiWeekRange(...importFeedback.range, language)}</p><p className="mt-2 text-sm text-[#536660]">{t("importFindWeeks")}</p></> : null}
+                    </> : null}
+                  </div>
+                  {importFeedback.status === "error" ? <ReportProblemButton /> : null}
+                  {importFeedback.status === "success" ? <>
+                    <nav aria-label={t("importReviewData")} className="mt-3 flex flex-wrap gap-3">
+                      {importFeedback.weeks > 0 || importFeedback.templates > 0 ? <Link href="/" className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline">{t("importOpenPlanner")}</Link> : null}
+                      {isLocalDataMode && importFeedback.ideas > 0 ? <Link href="/ideas" className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline">{t("importOpenIdeas")}</Link> : null}
+                    </nav>
+                    {isLocalDataMode && financeVisibility.initialized && !financeVisibility.visible ? <p className="mt-3 text-sm">{t("restoredFinanceAccess")} <Link className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline" href="/settings#finance-visibility">{t("financeVisibilitySettingsLink")}</Link></p> : null}
+                  </> : null}
+                </div>
+              ) : null}
             </div>
           </>
         ) : null}

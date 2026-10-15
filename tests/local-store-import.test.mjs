@@ -22,6 +22,8 @@ registerHooks({
 const {
   importLocalExportPayload,
   unlockLocalFinanceSession,
+  getLocalWeek,
+  getLocalWeeks,
 } = await import("../src/lib/local-store.ts");
 
 const TEMPLATES_KEY = "smart-paper.local.week-templates";
@@ -149,4 +151,23 @@ test("storage write failure restores primary records and preserves unrelated dat
   );
   assert.deepEqual(Object.fromEntries(values), before);
   assert.equal(localStorage.getItem("unrelated.key"), "leave me");
+});
+
+test("archived and future imported weeks join the normal selector without creating intervening weeks", async () => {
+  browserStorage();
+  await unlockLocalFinanceSession("1234");
+  const current = (await getLocalWeeks(0)).current_week_start;
+  const old = { ...await getLocalWeek("2001-01-06"), weekly_goal: "Archived هدف" };
+  const future = { ...await getLocalWeek("2099-01-03"), weekly_goal: "Future هدف" };
+  const currentWeek = await getLocalWeek(current);
+  await importLocalExportPayload(backup({ weeks: [old, future, currentWeek] }), "merge");
+  const result = await getLocalWeeks(0);
+  assert.deepEqual(result.weeks.map(week => week.start_date), [old.start_date, current, future.start_date]);
+  assert.equal(result.current_week_start, current);
+  assert.equal(result.weeks.filter(week => week.is_current).length, 1);
+  assert.equal((await getLocalWeeks(8)).weeks.length, 19);
+  assert.equal((await getLocalWeek(old.start_date)).weekly_goal, old.weekly_goal);
+  assert.equal((await getLocalWeek(future.start_date)).weekly_goal, future.weekly_goal);
+  await importLocalExportPayload(backup({ weeks: [future] }), "replace");
+  assert.deepEqual((await getLocalWeeks(0)).weeks.map(week => week.start_date), [current, future.start_date]);
 });
