@@ -3,7 +3,7 @@ const fs=require('node:fs/promises');
 const {fixture,storage,seed}=require('./fixtures.cjs');
 const receipt=page=>page.locator('[aria-labelledby="import-feedback-title"]');
 const upload=(page,backup)=>page.locator('#json-backup-file').setInputFiles({name:'older-backup-نسخه.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
-async function unlock(page){if(await page.locator('#export-pin').isVisible()){await page.locator('#export-pin').fill('1234');await page.locator('#export-pin').press('Enter');}await expect(page.locator('#json-backup-file')).toBeEnabled();}
+async function unlock(page){await expect(page.locator('#export-pin, #json-backup-file').first()).toBeVisible();if(await page.locator('#export-pin').isVisible()){await page.locator('#export-pin').fill('1234');await page.locator('#export-pin').press('Enter');}await expect(page.locator('#json-backup-file')).toBeEnabled();}
 async function thursday(page,fa){const toggle=page.locator('[aria-controls="planner-day-2026-10-15"]');if(await toggle.getAttribute('aria-expanded')==='false')await toggle.click();return page.locator('[data-planner-day-body="2026-10-15"]').getByRole('textbox',{name:fa?'یادداشت روز':'Day Note',exact:true});}
 test.beforeEach(async({page})=>{await page.clock.setFixedTime(new Date('2026-10-13T12:00:00Z'));await page.setViewportSize({width:390,height:700});});
 for(const language of ['en','fa'])test(`${language}: export then Thursday writing survives older Merge and conflicting backup while missing same-week text imports`,async({page,context})=>{
