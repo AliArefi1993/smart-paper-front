@@ -42,15 +42,19 @@ export function writeIdeaNotes(storage: Storage, notes: IdeaNote[]): void {
   storage.setItem(IDEA_NOTES_KEY, JSON.stringify(notes));
 }
 
-export function mergeIdeaNotes(existing: IdeaNote[], incoming: IdeaNote[]): IdeaNote[] {
+export function mergeIdeaNotes(existing: IdeaNote[], incoming: IdeaNote[], onConflict?: () => void): IdeaNote[] {
   const merged = new Map(existing.map((note) => [note.id, note]));
-  for (const note of incoming) merged.set(note.id, note);
+  for (const note of incoming) {
+    const saved = merged.get(note.id);
+    if (!saved) merged.set(note.id, note);
+    else if (saved.body !== note.body || saved.parent_id !== note.parent_id) onConflict?.();
+  }
   return [...merged.values()];
 }
 
-export function restoreIdeaNotes(existing: IdeaNote[], incoming: IdeaNote[] | undefined, mode: "merge" | "replace"): IdeaNote[] {
+export function restoreIdeaNotes(existing: IdeaNote[], incoming: IdeaNote[] | undefined, mode: "merge" | "replace", onConflict?: () => void): IdeaNote[] {
   if (incoming === undefined) return mode === "merge" ? existing : [];
-  return mode === "merge" ? mergeIdeaNotes(existing, incoming) : incoming;
+  return mode === "merge" ? mergeIdeaNotes(existing, incoming, onConflict) : incoming;
 }
 
 export function dailyIdeaNote(notes: IdeaNote[], date: string): IdeaNote | null {

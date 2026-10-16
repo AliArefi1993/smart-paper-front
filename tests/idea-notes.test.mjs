@@ -15,10 +15,10 @@ test("idea notes save and read without losing branches", () => {
   assert.equal(dailyIdeaNote(notes, "2026-09-30"), null);
 });
 
-test("backup validates notes and merge keeps incoming edits by id", () => {
+test("backup validates notes and merge preserves saved edits by id", () => {
   const payload = { schema_version: 5, weeks: [], finance: { goal_amount: 0, entries: [] }, idea_notes: [note("one", "New thought")] };
   assert.doesNotThrow(() => validateLocalBackup(payload));
-  assert.deepEqual(mergeIdeaNotes([note("one", "Old thought"), note("two", "Keep")], payload.idea_notes).map((item) => item.body), ["New thought", "Keep"]);
+  assert.deepEqual(mergeIdeaNotes([note("one", "Old thought"), note("two", "Keep")], payload.idea_notes).map((item) => item.body), ["Old thought", "Keep"]);
   assert.throws(() => validateLocalBackup({ ...payload, idea_notes: [{ ...note("bad", ""), body: "" }] }), /idea notes/);
   assert.throws(() => validateLocalBackup({ ...payload, idea_notes: [note("one", "A"), note("one", "B")] }), /idea notes/);
   assert.deepEqual(restoreIdeaNotes([note("old", "Keep")], undefined, "merge").map((item) => item.id), ["old"]);

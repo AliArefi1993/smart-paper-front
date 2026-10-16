@@ -25,7 +25,8 @@ import { shareOrDownloadFile } from "@/lib/file-share";
 import { validateLocalBackup } from "@/lib/local-import-safety";
 import { useLanguage } from "@/lib/use-language";
 import { useFinanceVisibility } from "@/lib/use-finance-visibility";
-import type { ExportPayload, ImportMode } from "@/lib/smart-paper-types";
+import type { ExportPayload, ImportMode, MergeConflicts } from "@/lib/smart-paper-types";
+import type { TranslationKey } from "@/lib/i18n";
 
 const isLocalDataMode = process.env.NEXT_PUBLIC_DATA_MODE === "local";
 type ExportMessage = string | { kind: "financeUnlocked" };
@@ -33,9 +34,13 @@ type ImportAttempt = { filename: string; mode: ImportMode };
 type ImportFeedback = ImportAttempt & (
   | { status: "importing" | "cancelled" }
   | { status: "error"; detail: string; invalidJson: boolean }
-  | { status: "success"; weeks: number; incomeEntries: number; ideas: number; templates: number; range: [string, string] | null }
+  | { status: "success"; weeks: number; incomeEntries: number; ideas: number; templates: number; range: [string, string] | null; conflicts?: MergeConflicts; hiddenSections?: boolean }
 );
 
+const conflictLabels: Record<MergeConflicts["categories"][number], TranslationKey> = {
+  planner: "planner", schedule: "safeMergeSchedule", templates: "templates", ideas: "ideasTitle",
+  income: "incomeEntries", financeGoal: "safeMergeFinanceGoal", plannerSections: "safeMergeSections",
+};
 
 function isForbidden(errorValue: unknown): boolean {
   return errorValue instanceof Response && errorValue.status === 403;
@@ -281,6 +286,8 @@ export function ExportView() {
         weeks: result.weeks_imported, incomeEntries: result.income_entries_imported,
         ideas: isLocalDataMode ? importedPayload.idea_notes?.length ?? 0 : 0,
         templates: isLocalDataMode ? importedPayload.week_templates?.length ?? 0 : 0,
+        conflicts: isLocalDataMode ? result.merge_conflicts : undefined,
+        hiddenSections: isLocalDataMode ? result.hidden_sections_imported : undefined,
       });
     } catch (importError) {
       if (!isCurrent(epoch)) return;
@@ -432,11 +439,12 @@ export function ExportView() {
             <div className="mt-8 border-t border-[#d9e4de] pt-5">
               <h2 className="text-xl font-bold">{t("importData")}</h2>
               <p className="mt-2 text-sm text-[#536660]">
-                {t("importDescription")}
+                {t(isLocalDataMode ? "safeImportDescription" : "importDescription")}
               </p>
+              {isLocalDataMode ? <p className="mt-2 text-sm text-[#536660]">{t("safeMergeDeletions")}</p> : null}
 
               <div className="mt-4 flex flex-wrap gap-3">
-                <label className="flex items-center gap-2 rounded-xl border border-[#b6c9bf] px-4 py-3 text-sm">
+                <label className="flex min-h-12 items-center gap-2 rounded-xl border border-[#b6c9bf] px-4 py-3 text-sm">
                   <input
                     type="radio"
                     name="import-mode"
@@ -445,9 +453,9 @@ export function ExportView() {
                     disabled={isImporting}
                     onChange={() => setImportMode("merge")}
                   />
-                  {t("mergeUpsert")}
+                  {t(isLocalDataMode ? "safeMergeLabel" : "mergeUpsert")}
                 </label>
-                <label className="flex items-center gap-2 rounded-xl border border-[#b6c9bf] px-4 py-3 text-sm">
+                <label className="flex min-h-12 items-center gap-2 rounded-xl border border-[#b6c9bf] px-4 py-3 text-sm">
                   <input
                     type="radio"
                     name="import-mode"
@@ -478,12 +486,19 @@ export function ExportView() {
                       {t(importFeedback.status === "success" ? "importComplete" : importFeedback.status === "error" ? "importIncomplete" : importFeedback.status === "cancelled" ? "importCancelled" : "importingBackup")}
                     </h3>
                     <p className="mt-2 text-sm"><span className="font-semibold">{t("importFile")}: </span><bdi>{importFeedback.filename}</bdi></p>
-                    <p className="mt-2 text-sm"><span className="font-semibold">{t("importModeLabel")}: </span>{t(importFeedback.mode === "merge" ? "mergeUpsert" : "deleteOldDataFirst")}</p>
+                    <p className="mt-2 text-sm"><span className="font-semibold">{t("importModeLabel")}: </span>{t(importFeedback.mode === "merge" ? isLocalDataMode ? "safeMergeLabel" : "mergeUpsert" : "deleteOldDataFirst")}</p>
                     {importFeedback.status === "importing" ? <p className="mt-2 text-sm">{t("importKeepOpen")}</p> : null}
                     {importFeedback.status === "cancelled" ? <p className="mt-2 text-sm">{t("importNoChanges")}</p> : null}
                     {importFeedback.status === "error" ? <><p className="mt-2 text-sm text-rose-700">{importFeedback.invalidJson ? t("importFileMustBeJson") : importFeedback.detail}</p><p className="mt-2 text-sm">{t("importRetry")}</p></> : null}
                     {importFeedback.status === "success" ? <>
                       {isLocalDataMode ? <p className="mt-2 font-semibold">{t("importSavedOnDevice")}</p> : null}
+                      {isLocalDataMode && !!importFeedback.conflicts?.categories.length ? <div className="mt-3 rounded-xl border border-[#e4d8ba] bg-[#fffaf0] p-3 text-sm text-amber-900">
+                        <h4 className="font-bold">{t("safeMergeKept")}</h4>
+                        <p className="mt-2">{t("safeMergeUnapplied")}</p>
+                        <p className="mt-2">{t("safeMergeAffected")}: {importFeedback.conflicts.categories.map((category) => t(conflictLabels[category])).join(isPersian ? "، " : ", ")}</p>
+                        <p className="mt-2">{t("safeMergeKeepBackup")}</p>
+                      </div> : null}
+                      {isLocalDataMode && importFeedback.hiddenSections ? <p className="mt-3 text-sm text-[#536660]">{t("safeMergeHiddenSections")}</p> : null}
                       <h4 className="mt-4 font-semibold">{t("importBackupRecords")}</h4>
                       <dl className="mt-2 grid gap-2 sm:grid-cols-2">
                         {([
@@ -491,7 +506,7 @@ export function ExportView() {
                           ...(isLocalDataMode ? [["ideasTitle", importFeedback.ideas], ["templates", importFeedback.templates]] as const : []),
                         ] as const).map(([label, count]) => <div key={label} className="flex justify-between gap-4 text-sm"><dt>{t(label)}</dt><dd className="font-bold">{formatNumber(count, language)}</dd></div>)}
                       </dl>
-                      <p className="mt-3 text-sm text-[#536660]">{t("importCountsHint")}</p>
+                      <p className="mt-3 text-sm text-[#536660]">{t(isLocalDataMode ? "safeImportCountsHint" : "importCountsHint")}</p>
                       {importFeedback.range ? <><p className="mt-3 text-sm"><span className="font-semibold">{t("importWeekRange")}: </span>{formatCompactShamsiWeekRange(...importFeedback.range, language)}</p><p className="mt-2 text-sm text-[#536660]">{t("importFindWeeks")}</p></> : null}
                     </> : null}
                   </div>
@@ -500,6 +515,7 @@ export function ExportView() {
                     <nav aria-label={t("importReviewData")} className="mt-3 flex flex-wrap gap-3">
                       {importFeedback.weeks > 0 || importFeedback.templates > 0 ? <Link href="/" className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline">{t("importOpenPlanner")}</Link> : null}
                       {isLocalDataMode && importFeedback.ideas > 0 ? <Link href="/ideas" className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline">{t("importOpenIdeas")}</Link> : null}
+                      {isLocalDataMode && importFeedback.hiddenSections ? <Link href="/settings" className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline">{t("settings")}</Link> : null}
                     </nav>
                     {isLocalDataMode && financeVisibility.initialized && !financeVisibility.visible ? <p className="mt-3 text-sm">{t("restoredFinanceAccess")} <Link className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline" href="/settings#finance-visibility">{t("financeVisibilitySettingsLink")}</Link></p> : null}
                   </> : null}

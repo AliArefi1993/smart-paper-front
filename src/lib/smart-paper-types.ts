@@ -153,10 +153,15 @@ export type ExportPayload = {
 
 export type ImportMode = "merge" | "replace";
 
+export type MergeConflictCategory = "planner" | "schedule" | "templates" | "ideas" | "income" | "financeGoal" | "plannerSections";
+export type MergeConflicts = { categories: MergeConflictCategory[]; planner_dates: string[] };
+
 export type ImportResult = {
   mode: ImportMode;
   weeks_imported: number;
   income_entries_imported: number;
   finance_goal_updated: boolean;
+  merge_conflicts?: MergeConflicts;
+  hidden_sections_imported?: boolean;
   payload: ExportPayload;
 };

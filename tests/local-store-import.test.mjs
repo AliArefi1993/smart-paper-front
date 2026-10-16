@@ -24,6 +24,8 @@ const {
   unlockLocalFinanceSession,
   getLocalWeek,
   getLocalWeeks,
+  getLocalExportPayload,
+  saveLocalWeek,
 } = await import("../src/lib/local-store.ts");
 
 const TEMPLATES_KEY = "smart-paper.local.week-templates";
@@ -77,18 +79,48 @@ test("merge retains saved templates when imported templates are an empty array",
   assert.deepEqual(result.payload.week_templates, saved);
 });
 
+for (const noteType of ["day", "section"]) {
+  test(`merge of an older export preserves a Thursday ${noteType} note saved after export`, async () => {
+    browserStorage();
+    await unlockLocalFinanceSession("1234");
+    const week = await getLocalWeek("2026-10-10");
+    week.days[0].day_note = "Saturday writing already in the backup";
+    saveLocalWeek(week);
+    // Round-trip the real export through JSON, as a downloaded backup file does.
+    const olderBackup = JSON.parse(JSON.stringify(await getLocalExportPayload()));
+    const note = "Thursday writing added after backup — نوشته پنج‌شنبه";
+    const edited = await getLocalWeek(week.start_date);
+    const thursday = edited.days.find((day) => day.weekday_name === "Thursday");
+    assert.ok(thursday);
+    const readNote = (day) => noteType === "day" ? day.day_note : day.sections.slot_1.note;
+    assert.equal(readNote(olderBackup.weeks[0].days[5]), "");
+    if (noteType === "day") thursday.day_note = note;
+    else thursday.sections.slot_1.note = note;
+    saveLocalWeek(edited);
+    assert.equal(readNote((await getLocalWeek(week.start_date)).days[5]), note);
+
+    const result = await importLocalExportPayload(olderBackup, "merge");
+
+    const restored = await getLocalWeek(week.start_date);
+    assert.equal(readNote(restored.days[5]), note, "Merge must retain writing saved after the backup");
+    assert.equal(restored.days[0].day_note, week.days[0].day_note);
+    assert.equal(readNote(result.payload.weeks[0].days[5]), note);
+  });
+}
+
 test("merge retains saved templates when the backup omits templates", async () => {
   const saved = [template(1, "A"), template(2, "B")];
   const { result } = await importWithTemplates(saved, backup());
   assert.deepEqual(result.payload.week_templates, saved);
 });
 
-test("merge updates matching templates and adds incoming templates", async () => {
+test("merge preserves matching templates and adds incoming templates", async () => {
   const saved = [template(1, "A"), template(2, "B")];
   const updatedB = { ...saved[1], weekly_goal: "Updated B goal" };
   const incoming = [updatedB, template(3, "C")];
   const { result } = await importWithTemplates(saved, backup({ week_templates: incoming }));
-  assert.deepEqual(result.payload.week_templates, [saved[0], updatedB, incoming[1]]);
+  assert.deepEqual(result.payload.week_templates, [saved[0], saved[1], incoming[1]]);
+  assert.ok(result.merge_conflicts.categories.includes("templates"));
 });
 
 test("merge keeps distinct template IDs even when names match", async () => {

@@ -6,6 +6,7 @@ import type {
   ImportMode,
   ImportResult,
   IncomeEntry,
+  PlannerSection,
   SectionName,
   WeekTemplate,
   WeekDetail,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/planner-sections";
 import { commitStorageChanges, parseStoredJson, validateLocalBackup } from "@/lib/local-import-safety";
 import { IDEA_NOTES_KEY, readIdeaNotes, restoreIdeaNotes } from "@/lib/idea-notes";
+import { createMergeConflicts, recordMergeConflict, mergePlannerWeek, sameTemplateContent, mergeIncomeEntries } from "@/lib/local-backup-merge";
 import { recordLocalError, recordFlowOutcome, type DiagnosticRoute } from "@/lib/local-diagnostics";
 
 const WEEKDAY_NAMES = [
@@ -146,7 +148,7 @@ function createWeek(startDate: string, plannerSections = getStoredPlannerSection
   };
 }
 
-function getStoredWeeks(): StoredWeeks {
+function readStoredWeeks(plannerSections?: PlannerSection[]): { weeks: StoredWeeks; changed: boolean } {
   const weeks = readJson<unknown>(WEEKS_KEY, {});
   if (!weeks || typeof weeks !== "object" || Array.isArray(weeks)) {
     throw new Error("Saved planner weeks are damaged. Restore from a JSON backup.");
@@ -157,13 +159,18 @@ function getStoredWeeks(): StoredWeeks {
       if (!week || typeof week !== "object" || !Array.isArray((week as WeekDetail).days)) {
         throw new Error("Saved planner weeks are damaged. Restore from a JSON backup.");
       }
-      const nextWeek = normalizeStoredWeek(week as WeekDetail);
+      const nextWeek = normalizeStoredWeek(week as WeekDetail, plannerSections);
       if (JSON.stringify(nextWeek) !== JSON.stringify(week)) changed = true;
       return [startDate, nextWeek];
     }),
   ) as StoredWeeks;
-  if (changed) writeJson(WEEKS_KEY, normalized);
-  return normalized;
+  return { weeks: normalized, changed };
+}
+
+function getStoredWeeks(): StoredWeeks {
+  const { weeks, changed } = readStoredWeeks();
+  if (changed) writeJson(WEEKS_KEY, weeks);
+  return weeks;
 }
 
 function saveStoredWeek(week: WeekDetail): WeekDetail {
@@ -304,8 +311,7 @@ function collectDetailsBySection(days: DayData[]): WeekSummary["details_by_secti
   return details;
 }
 
-function normalizeStoredWeek(week: WeekDetail): WeekDetail {
-  const plannerSections = getStoredPlannerSections();
+function normalizeStoredWeek(week: WeekDetail, plannerSections = getStoredPlannerSections()): WeekDetail {
   const normalized = normalizeWeekDetail({
     ...week,
     planner_sections: plannerSections,
@@ -577,34 +583,63 @@ export async function importLocalExportPayload(
     throw new Error("Import mode must be merge or replace.");
   }
 
-  const plannerSections = Array.isArray(payload.planner_sections)
-    ? normalizePlannerSections(payload.planner_sections)
-    : mode === "replace"
-      ? normalizePlannerSections(null)
-      : getStoredPlannerSections();
+  // Keep all preparation read-only: the single commit below owns rollback of
+  // the exact saved bytes, including legacy values that need normalization.
+  const storage = requireBrowserStorage();
+  const conflicts = createMergeConflicts();
+  const rawSections = mode === "merge" ? storage.getItem(PLANNER_SECTIONS_KEY) : null;
+  const rawFinance = mode === "merge" ? storage.getItem(FINANCE_KEY) : null;
+  const savedSections = parseStoredJson<unknown>(rawSections, null);
+  if (rawSections !== null && !Array.isArray(savedSections)) {
+    throw new Error("Saved planner sections are damaged. Restore from a JSON backup.");
+  }
+  const incomingSections = normalizePlannerSections(payload.planner_sections);
+  const plannerSections = mode === "merge" && rawSections !== null
+    ? normalizePlannerSections(savedSections)
+    : incomingSections;
+  if (mode === "merge" && rawSections !== null && payload.planner_sections !== undefined &&
+      JSON.stringify(plannerSections) !== JSON.stringify(incomingSections)) {
+    recordMergeConflict(conflicts, "plannerSections");
+  }
   const templatesById = new Map<number, WeekTemplate>(
     (mode === "merge" ? getStoredWeekTemplates() : []).map((template) => [template.id, template]),
   );
   for (const template of payload.week_templates ?? []) {
-    templatesById.set(template.id, template);
+    const saved = templatesById.get(template.id);
+    if (!saved) templatesById.set(template.id, template);
+    else if (!sameTemplateContent(saved, template)) recordMergeConflict(conflicts, "templates");
   }
   const templates = mode === "replace"
     ? payload.week_templates ?? []
     : [...templatesById.values()];
   const ideaNotes = restoreIdeaNotes(
-    mode === "merge" ? readIdeaNotes(requireBrowserStorage()) : [],
+    mode === "merge" ? readIdeaNotes(storage) : [],
     payload.idea_notes,
     mode,
+    () => recordMergeConflict(conflicts, "ideas"),
   );
-  const weeks: StoredWeeks = mode === "replace" ? {} : { ...getStoredWeeks() };
+  const weeks: StoredWeeks = mode === "replace" ? {} : readStoredWeeks(plannerSections).weeks;
   const activeSections = plannerSections.filter((section) => section.active).map((section) => section.id);
+  const inactiveSections = plannerSections.filter((section) => !section.active).map((section) => section.id);
+  let hiddenSectionsImported = false;
   for (const importedWeek of payload.weeks) {
-    const existing = weeks[importedWeek.start_date] ?? createWeek(importedWeek.start_date, plannerSections);
-    const normalized = normalizeWeekDetail({
-      ...existing,
+    const existing = weeks[importedWeek.start_date];
+    const incoming = normalizeWeekDetail({
       ...importedWeek,
       planner_sections: plannerSections,
     });
+    const normalized = normalizeWeekDetail(existing && mode === "merge"
+      ? mergePlannerWeek(existing, incoming, plannerSections, conflicts)
+      : incoming);
+    for (const day of normalized.days) {
+      const previous = existing?.days.find((savedDay) => savedDay.date === day.date);
+      for (const id of inactiveSections) {
+        const saved = previous?.sections[id];
+        const next = day.sections[id];
+        if ((!saved?.note.trim() && next.note.trim()) || (!saved?.goal.trim() && next.goal.trim()) ||
+            (!saved?.duration_minutes && next.duration_minutes > 0)) hiddenSectionsImported = true;
+      }
+    }
     weeks[importedWeek.start_date] = {
       ...normalized,
       totals: calculateSectionTotals(normalized.days, activeSections),
@@ -622,31 +657,23 @@ export async function importLocalExportPayload(
     ? { goal_amount: 0, entries: [] }
     : getStoredFinance();
   const importedEntries = payload.finance.entries;
-  const entriesById = new Map<number, IncomeEntry>();
-  for (const entry of currentFinance.entries) {
-    entriesById.set(entry.id, entry);
+  const keepFinanceGoal = mode === "merge" && rawFinance !== null;
+  if (keepFinanceGoal && currentFinance.goal_amount !== payload.finance.goal_amount) {
+    recordMergeConflict(conflicts, "financeGoal");
   }
-  importedEntries.forEach((entry, index) => {
-    if (!entry || entry.amount <= 0 || !entry.received_on) {
-      return;
-    }
-    const id =
-      Number.isInteger(entry.id) && entry.id > 0 ? entry.id : Date.now() + index;
-    entriesById.set(id, {
-      id,
-      amount: entry.amount,
-      note: entry.note ?? "",
-      received_on: entry.received_on,
+  const replacedEntries = new Map<number, IncomeEntry>();
+  if (mode === "replace") {
+    importedEntries.forEach((entry, index) => {
+      const id = Number.isInteger(entry.id) && entry.id > 0 ? entry.id : Date.now() + index;
+      replacedEntries.set(id, { id, amount: entry.amount, note: entry.note ?? "", received_on: entry.received_on });
     });
-  });
-
-  const financeGoalUpdated = true;
+  }
   const finance: StoredFinance = {
-    goal_amount: payload.finance.goal_amount,
-    entries: [...entriesById.values()],
+    goal_amount: keepFinanceGoal ? currentFinance.goal_amount : payload.finance.goal_amount,
+    entries: mode === "merge" ? mergeIncomeEntries(currentFinance.entries, importedEntries, conflicts) : [...replacedEntries.values()],
   };
 
-  commitStorageChanges(requireBrowserStorage(), {
+  commitStorageChanges(storage, {
     [PLANNER_SECTIONS_KEY]: JSON.stringify(plannerSections),
     [WEEK_TEMPLATES_KEY]: JSON.stringify(templates),
     [WEEKS_KEY]: JSON.stringify(weeks),
@@ -658,7 +685,9 @@ export async function importLocalExportPayload(
     mode,
     weeks_imported: payload.weeks.length,
     income_entries_imported: importedEntries.length,
-    finance_goal_updated: financeGoalUpdated,
+    finance_goal_updated: !keepFinanceGoal,
+    ...(mode === "merge" ? { merge_conflicts: conflicts } : {}),
+    hidden_sections_imported: hiddenSectionsImported,
     payload: {
       schema_version: 5,
       exported_at: new Date().toISOString(),
